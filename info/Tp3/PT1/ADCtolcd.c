@@ -26,12 +26,12 @@ int main(int iArgCount, char* apstrArgValue[]){
 	
 	while (1)
 	{
-		handler = ReadAdcIA(cdevAdIA0.m_iFdIO, buffer, strlen(buffer));
+		handler = ReadAdcIA(cdevAdIA0.m_iFdIO, buffer, sizeof(buffer));
 		CheckHandler(handler);
 		handler = sscanf(buffer , "%i" , &ValPot);
 		CheckHandler(handler);
 		ClearLastRawShell();
-		printf("%6.3f\n",ConvertToVoltage(ValPot, 2.5));
+		printf("%4.3f\n",ConvertToVoltage(ValPot, 2.5));
 		sleep(1);
 	}
 	return (iResult);

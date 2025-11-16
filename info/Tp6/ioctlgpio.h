@@ -16,6 +16,22 @@
 #define      __IOCTLGPIO_H__
 
 #include <linux/gpio.h>
+#include <stdio.h>   
+#include <string.h>  
+#include <unistd.h>  
+#include <fcntl.h>   
+#include <errno.h>   
+#include <syslog.h>
+#include <signal.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <sys/ioctl.h>
+#include <sys/select.h>
+#include <time.h>
+#include <fcntl.h>
+#include <poll.h>
 #include <poll.h>
 
 struct TDeviceChar;

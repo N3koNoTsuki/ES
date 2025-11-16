@@ -77,6 +77,7 @@ void CheckHandler(int Handler) {
 	
 			default:
 			/* code */
+			perror("Erreur ReadAdcIA");
 			fprintf(stderr,"une erreur est surevenue\n");
 			break;
 		}

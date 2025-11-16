@@ -145,8 +145,6 @@ int main(int iArgCount, char* apstrArgValue[]){
 		{
 			
 			TmpsI = (int) Tmps;
-			printf("Valeur recus : %f\n", Tmps);
-			printf("A : %i\n", TmpsI);
 			alarm(TmpsI);
 		}
 		

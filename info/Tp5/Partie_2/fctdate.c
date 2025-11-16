@@ -1,4 +1,4 @@
-/* $Id: fctdate.c, v 1.0 05/07/2017 11:51:52  $
+rooo/* $Id: fctdate.c, v 1.0 05/07/2017 11:51:52  $
  *
  * linux : heure locale  HH:MN 
  *
