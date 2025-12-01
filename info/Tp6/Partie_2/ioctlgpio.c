@@ -20,10 +20,16 @@
 
 sig_atomic_t sigFlagStop = 0;
 
+#ifndef USE_REFACTORED_LOGIC
+#define USE_REFACTORED_LOGIC 0 /* 1: logique blink/all-on (Codex), 0: logique originale (affichage) */
+#endif
+
 void signal_handler(int iSignal);
+#if USE_REFACTORED_LOGIC
 static void set_all_leds(struct gpiohandle_data *data, uint8_t value);
 static void configure_button_event(struct TDeviceCharGpIO *gpio, size_t idx, unsigned int lineoffset);
 static void refresh_button_state(struct TDeviceCharGpIO *gpio, size_t idx, bool *pressed);
+#endif
 void signal_handler(int iSignal)
 {
 
@@ -43,6 +49,7 @@ void signal_handler(int iSignal)
 	}
 }
 
+#if USE_REFACTORED_LOGIC
 static void set_all_leds(struct gpiohandle_data *data, uint8_t value)
 {
 	for (size_t i = 0; i < 10; i++)
@@ -80,6 +87,7 @@ static void refresh_button_state(struct TDeviceCharGpIO *gpio, size_t idx, bool 
 		*pressed = false;
 	}
 }
+#endif
 
 int main(int iArgCount, char *apstrArgValue[])
 {
@@ -87,9 +95,11 @@ int main(int iArgCount, char *apstrArgValue[])
 	signal(SIGTERM, signal_handler);
 	signal(SIGALRM, signal_handler);
 	int iResult = 0;
+#if USE_REFACTORED_LOGIC
 	bool bButton0Pressed = false;
 	bool bButton1Pressed = false;
 	bool bBlinkStateOn = false;
+#endif
 	struct TDeviceCharGpIO gpioLeds = {
 		.m_DevChar = {
 			.m_iDescIo = -1,
@@ -155,7 +165,13 @@ int main(int iArgCount, char *apstrArgValue[])
 		   gpioButton2.m_chipinfo.lines);
 
 	/*----------------------------BUTTON 1 SETUP--------------------------------*/
+#if USE_REFACTORED_LOGIC
 	configure_button_event(&gpioButton2, 0, 0);
+#else
+	gpioButton2.m_event_request[0].lineoffset = 0;
+	gpioButton2.m_event_request[0].handleflags = GPIOHANDLE_REQUEST_INPUT;
+	gpioButton2.m_event_request[0].eventflags = GPIOEVENT_REQUEST_BOTH_EDGES;
+#endif
 	iResult = ioctl(gpioButton2.m_DevChar.m_iDescIo, GPIO_GET_LINEEVENT_IOCTL, &gpioButton2.m_event_request[0]);
 	if (iResult < 0)
 	{
@@ -163,7 +179,13 @@ int main(int iArgCount, char *apstrArgValue[])
 	}
 
 	/*----------------------------BUTTON 2 SETUP--------------------------------*/
+#if USE_REFACTORED_LOGIC
 	configure_button_event(&gpioButton2, 1, 1);
+#else
+	gpioButton2.m_event_request[1].lineoffset = 1;
+	gpioButton2.m_event_request[1].handleflags = GPIOHANDLE_REQUEST_INPUT;
+	gpioButton2.m_event_request[1].eventflags = GPIOEVENT_REQUEST_BOTH_EDGES;
+#endif
 	iResult = ioctl(gpioButton2.m_DevChar.m_iDescIo, GPIO_GET_LINEEVENT_IOCTL, &gpioButton2.m_event_request[1]);
 	if (iResult < 0)
 	{
@@ -179,6 +201,7 @@ int main(int iArgCount, char *apstrArgValue[])
 	/*----------------------------MAIN LOOP--------------------------------*/
 	while (sigFlagStop != -1)
 	{
+#if USE_REFACTORED_LOGIC
 		int iTimeoutMs = (bButton1Pressed && !bButton0Pressed) ? 500 : -1;
 		int iPollRes = poll(gpioButton2.m_pollfd, 2, iTimeoutMs);
 		if (iPollRes < 0)
@@ -219,9 +242,60 @@ int main(int iArgCount, char *apstrArgValue[])
 		{
 			perror("ioctl() ledson");
 		}
+#else
+		/* Logique originale : attendre et afficher les événements des boutons */
+		if (poll(&gpioButton2.m_pollfd[0], 1, -1) < 0)
+		{
+			if (sigFlagStop == -1)
+			{
+				break;
+			}
+			else
+			{
+				perror("poll() button event");
+			}
+		}
+		else
+		{
+			read(gpioButton2.m_pollfd[0].fd, &gpioButton2.m_event_data[0], sizeof(struct gpioevent_data));
+			if (gpioButton2.m_event_data[0].id == GPIOEVENT_EVENT_FALLING_EDGE ||
+				gpioButton2.m_event_data[0].id == GPIOEVENT_EVENT_RISING_EDGE)
+			{
+				printf("Button2[0] pressed\n");
+			}
+		}
+
+		if (poll(&gpioButton2.m_pollfd[1], 1, -1) < 0)
+		{
+			if (sigFlagStop == -1)
+			{
+				break;
+			}
+			else
+			{
+				perror("poll() button event");
+			}
+		}
+		else
+		{
+			read(gpioButton2.m_pollfd[1].fd, &gpioButton2.m_event_data[1], sizeof(struct gpioevent_data));
+			if (gpioButton2.m_event_data[1].id == GPIOEVENT_EVENT_FALLING_EDGE ||
+				gpioButton2.m_event_data[1].id == GPIOEVENT_EVENT_RISING_EDGE)
+			{
+				printf("Button2[1] pressed\n");
+			}
+		}
+#endif
 	}
 
+#if USE_REFACTORED_LOGIC
 	set_all_leds(&gpioLeds.m_data, 0);
+#else
+	for (size_t i = 0; i < 10; i++)
+	{
+		gpioLeds.m_data.values[i] = 0;
+	}
+#endif
 
 	iResult = ioctl(gpioLeds.m_request.fd, GPIOHANDLE_SET_LINE_VALUES_IOCTL, &gpioLeds.m_data);
 	if (iResult < 0)

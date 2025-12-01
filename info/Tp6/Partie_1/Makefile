@@ -11,7 +11,7 @@ CFLAGS =  -g -Wall
 LDFLAGS = -g -Wall
 
 
-PROGS     = gpioLed4Buts
+PROGS     = gpioLed4ButsPt1
 
 ifeq ($(prefix),)
     prefix	 = /home/geii/DE1-Soc/rootfs
