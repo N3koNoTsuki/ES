@@ -244,28 +244,8 @@ int main(int iArgCount, char *apstrArgValue[])
 		}
 #else
 		/* Logique originale : attendre et afficher les événements des boutons */
-		if (poll(&gpioButton2.m_pollfd[0], 1, -1) < 0)
-		{
-			if (sigFlagStop == -1)
-			{
-				break;
-			}
-			else
-			{
-				perror("poll() button event");
-			}
-		}
-		else
-		{
-			read(gpioButton2.m_pollfd[0].fd, &gpioButton2.m_event_data[0], sizeof(struct gpioevent_data));
-			if (gpioButton2.m_event_data[0].id == GPIOEVENT_EVENT_FALLING_EDGE ||
-				gpioButton2.m_event_data[0].id == GPIOEVENT_EVENT_RISING_EDGE)
-			{
-				printf("Button2[0] pressed\n");
-			}
-		}
 
-		if (poll(&gpioButton2.m_pollfd[1], 1, -1) < 0)
+		if (poll(gpioButton2.m_pollfd,2,-1) <= -1)
 		{
 			if (sigFlagStop == -1)
 			{
@@ -278,11 +258,30 @@ int main(int iArgCount, char *apstrArgValue[])
 		}
 		else
 		{
-			read(gpioButton2.m_pollfd[1].fd, &gpioButton2.m_event_data[1], sizeof(struct gpioevent_data));
-			if (gpioButton2.m_event_data[1].id == GPIOEVENT_EVENT_FALLING_EDGE ||
-				gpioButton2.m_event_data[1].id == GPIOEVENT_EVENT_RISING_EDGE)
+			if (gpioButton2.m_pollfd[0].revents & POLLIN)
 			{
-				printf("Button2[1] pressed\n");
+				read(gpioButton2.m_pollfd[0].fd, &gpioButton2.m_event_data[0], sizeof(struct gpioevent_data));
+				if (gpioButton2.m_event_data[0].id == GPIOEVENT_EVENT_FALLING_EDGE)
+				{
+					printf("Button2[0] pressed\n");
+				}
+				else if (gpioButton2.m_event_data[0].id == GPIOEVENT_EVENT_RISING_EDGE)
+				{
+					printf("Button2[0] released\n");
+				}
+			}
+
+			if (gpioButton2.m_pollfd[1].revents & POLLIN)
+			{
+				read(gpioButton2.m_pollfd[1].fd, &gpioButton2.m_event_data[1], sizeof(struct gpioevent_data));
+				if (gpioButton2.m_event_data[1].id == GPIOEVENT_EVENT_FALLING_EDGE)
+				{
+					printf("Button2[1] pressed\n");
+				}
+				else if (gpioButton2.m_event_data[1].id == GPIOEVENT_EVENT_RISING_EDGE)
+				{
+					printf("Button2[1] released\n");
+				}
 			}
 		}
 #endif
