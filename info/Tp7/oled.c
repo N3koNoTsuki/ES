@@ -55,16 +55,14 @@ int main(int iArgCount, char* apstrArgValue[]){
 
 	//reservation	
 	int iResult = 0;
-	uint8_t cmd[50] = {0};
-	const uint8_t init_cmd[] = { 0xFF, 0xCF, 0x00, 0x0A, 0x00, 0x14, 0x00, 0x50, 0x00, 0x50, 0x00, 0x1F};
-	size_t cmd_len = fillcmd(cmd, sizeof(cmd), init_cmd, sizeof(init_cmd));
+	uint8_t cmd[50] = { 0xFF, 0xCF, 0x00, 0x0A, 0x00, 0x14, 0x00, 0x50, 0x00, 0x50, 0x00, 0x1F};
 	#ifdef DEBUG
 	fprintf(stdout, "H0\n\r");
 	#endif
 	//Initialisation des drivers
 	EcranOled.m_iDescIO = open(EcranOled.m_strFileIO,O_RDWR);
-	perror("open ");
 	#ifdef DEBUG
+	perror("open ");
 	fprintf(stdout, "H01\n\r");
 	#endif
 	//Configuration de la liaison RS-232
@@ -110,6 +108,6 @@ int main(int iArgCount, char* apstrArgValue[]){
 	tcflush(EcranOled.m_iDescIO, TCIOFLUSH);
 	iResult = close(EcranOled.m_iDescIO);
 
-
+	fprintf(stdout,"\033[2K\rFin du programme\n\r");
 	return (iResult);
 }

@@ -16,7 +16,6 @@
 #include <unistd.h>
 #include <errno.h>
 #include <string.h>
-#include <stdarg.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -29,11 +28,6 @@ struct TCharDevice {
 };
 
 void clearcmd(uint8_t* cmd, size_t len);
-<<<<<<< ours
-size_t fillcmd(uint8_t* dest, size_t dest_len, const uint8_t* src, size_t src_len);
-size_t fillcmd_bytes(uint8_t* dest, size_t dest_len, size_t count, ...);
-=======
->>>>>>> theirs
 int CleaOled(int __Fd);
 int SendCmd(int __Fd, const uint8_t * __buf, size_t len);
 #endif // #if !defined __OLED_H__

@@ -1,6 +1,8 @@
 {
     "files.associations": {
-        "time.h": "c"
+        "time.h": "c",
+        "oled.h": "c",
+        "GoldElox.C": "cpp"
     },
     "C_Cpp.errorSquiggles": "disabled"
 }
