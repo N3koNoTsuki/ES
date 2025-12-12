@@ -71,8 +71,8 @@ int main(int iArgCount, char* apstrArgValue[]){
 	#ifdef DEBUG
 	fprintf(stdout, "H02\n\r");
 	#endif
-	cfsetispeed(&LiasonOled, B9600);
-	cfsetospeed(&LiasonOled, B9600);
+	cfsetispeed(&LiasonOled, B1152000);
+	cfsetospeed(&LiasonOled, B1152000);
 	#ifdef DEBUG
 	fprintf(stdout, "H03\n\r");
 	#endif
