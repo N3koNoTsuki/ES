@@ -36,7 +36,7 @@ void gestionnaire_signal(int iNumSignal) {
 }
 
 int main(int iArgCount, char* apstrArgValue[]){
-	
+	printf("\033c");
 	//Gestion des signaux
 	signal(SIGINT, gestionnaire_signal);
 	signal(SIGTERM, gestionnaire_signal);
@@ -55,7 +55,8 @@ int main(int iArgCount, char* apstrArgValue[]){
 
 	//reservation	
 	int iResult = 0;
-	uint8_t cmd[50] = { 0xFF, 0xCF, 0x00, 0x0A, 0x00, 0x14, 0x00, 0x50, 0x00, 0x50, 0x00, 0x1F};
+	uint8_t cmd_set_speed[] = {0x00, 0x0B, 0x00, 0x19};
+	uint8_t cmd[] = {0xFF, 0xCF, 0x00, 0x0A, 0x00, 0x14, 0x00, 0x50, 0x00, 0x50, 0x00, 0x1F};
 	#ifdef DEBUG
 	fprintf(stdout, "H0\n\r");
 	#endif
@@ -65,31 +66,67 @@ int main(int iArgCount, char* apstrArgValue[]){
 	perror("open ");
 	fprintf(stdout, "H01\n\r");
 	#endif
+	// Evite de bloquer indéfiniment si aucune donnée n'arrive
+	fcntl(EcranOled.m_iDescIO, F_SETFL, O_NONBLOCK);
 	//Configuration de la liaison RS-232
 	tcgetattr(EcranOled.m_iDescIO,&LiasonOled);
 	LiasonOled_Old = LiasonOled;	//Buffer pour enregistrer les params par defauts
 	#ifdef DEBUG
 	fprintf(stdout, "H02\n\r");
 	#endif
-	cfsetispeed(&LiasonOled, B1152000);
-	cfsetospeed(&LiasonOled, B1152000);
+	cfmakeraw(&LiasonOled);			// Passe en mode raw et nettoie les flags inutiles
+	cfsetispeed(&LiasonOled, B9600);
+	cfsetospeed(&LiasonOled, B9600);
+	LiasonOled.c_cflag |= CLOCAL | CREAD | CS8;	// Garde la réception active en 8N1
+	LiasonOled.c_cc[VMIN]  = 0;		// read ne bloque pas si rien n'arrive
+	LiasonOled.c_cc[VTIME] = 5;		// timeout de 0,5 s
 	#ifdef DEBUG
 	fprintf(stdout, "H03\n\r");
 	#endif
-	LiasonOled.c_cflag |= CS8 | CREAD | CLOCAL;
-	LiasonOled.c_lflag = 0;
-	LiasonOled.c_iflag = 0;
-	LiasonOled.c_oflag = 0;
-	tcsetattr(EcranOled.m_iDescIO, TCSANOW, &LiasonOled);
+	iResult = tcsetattr(EcranOled.m_iDescIO, TCSANOW, &LiasonOled);
+	if (iResult < 0)
+	{
+		/* code */
+		perror("tcsetattr");
+	}
+	tcflush(EcranOled.m_iDescIO, TCIOFLUSH);
+
 	#ifdef DEBUG
 	fprintf(stdout, "H04\n\r");
 	#endif
 
+	iResult = write(EcranOled.m_iDescIO, cmd_set_speed, sizeof(cmd_set_speed));
+	if (iResult < 0)
+	{
+		/* code */
+		perror("Set Baud");
+	}
+	#ifdef DEBUG
+	fprintf(stdout, "H05\n\r");
+	#endif
+	usleep(100000); 
+	cfsetispeed(&LiasonOled, B115200);
+	cfsetospeed(&LiasonOled, B115200);
+	tcsetattr(EcranOled.m_iDescIO, TCSANOW, &LiasonOled);
+	tcflush(EcranOled.m_iDescIO, TCIOFLUSH);
+	#ifdef DEBUG
+	fprintf(stdout, "H06\n\r");
+	#endif
+	char ack[20];
+	iResult = read(EcranOled.m_iDescIO, ack, sizeof(ack));
+	if (iResult < 0)
+	{
+		/* code */
+		perror("read ");
+	}
 	
+	#ifdef DEBUG
+	fprintf(stdout, "H07\n\r");
+	#endif
 
 	iResult = SendCmd(EcranOled.m_iDescIO, cmd, sizeof(cmd));
 	#ifdef DEBUG
-	fprintf(stdout, "H05\n\r");
+	fprintf(stdout, "H08\n\r");
 	#endif
 	clearcmd(cmd, sizeof(cmd));
 
