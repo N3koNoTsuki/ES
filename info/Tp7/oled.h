@@ -8,7 +8,7 @@
 
 #if !defined __OLED_H__
 #define      __OLED_H__
-//#define DEBUG
+#define DEBUG
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -26,6 +26,8 @@ struct TCharDevice {
 	char 	m_strFileIO[60];
 	int		m_iDescIO;
 };
+
+
 
 void clearcmd(uint8_t* cmd, size_t len);
 int CleaOled(int __Fd);

@@ -7,12 +7,16 @@ void clearcmd(uint8_t* cmd, size_t len){
 int CleaOled(int __Fd){
     uint8_t cmd[2] = {0xFF, 0xD7};
     uint8_t RetVal;
-
+   	#ifdef DEBUG
+    fprintf(stdout, "HI Co\n\r");
+    #endif
 	if (write(__Fd, cmd, sizeof(cmd)) < 0)
 	{
 		return -1;
 	}
-
+   	#ifdef DEBUG
+    fprintf(stdout, "HI2 Co\n\r");
+    #endif
 	if (read(__Fd, &RetVal, sizeof(RetVal)) < 0)
 	{
 		return -2;
@@ -23,10 +27,9 @@ int CleaOled(int __Fd){
 
 int SendCmd(int __Fd, const uint8_t * __buf, size_t len){
 
-    uint8_t RetVal;
+    int RetVal;
 
     #ifdef DEBUG
-    fprintf(stdout, "%i\n\r", __buf[1]);
     fprintf(stdout, "HI\n\r");
     #endif
 
@@ -37,7 +40,7 @@ int SendCmd(int __Fd, const uint8_t * __buf, size_t len){
 	}
 
     #ifdef DEBUG
-    perror("write :");
+    perror("write ");
     fprintf(stdout, "HI2\n\r");
     #endif
 
@@ -48,7 +51,7 @@ int SendCmd(int __Fd, const uint8_t * __buf, size_t len){
 	}
 
     #ifdef DEBUG
-    perror("read :");
+    perror("read ");
     #endif
     
     return RetVal;

@@ -272,44 +272,45 @@ int main(int iArgCount, char* apstrArgValue[]){
 	__uint8_t Max = apstrArgValue[1] ? (__uint8_t)atoi(apstrArgValue[1]) : 10;
 
 
-	for (size_t i = 0; i < Max + 1; i++)
-	{
-		/* code */
-		//Ecriture valeur
-		u_int8_t ActualVal = Max - i;
-		if (sigFlagStop == -1)
+		for (size_t i = 0; i < Max + 1; i++)
 		{
 			/* code */
-			break;
+			//Ecriture valeur
+			u_int8_t ActualVal = Max - i;
+			if (sigFlagStop == -1)
+			{
+				/* code */
+				break;
+			}
+			
+			Value = ((ActualVal)/10) *16 + ((ActualVal)%10);
+			iResult = write(cdevhex7seg.m_iDescIO, &Value, sizeof(Value));
+			if (iResult < 0) {
+				perror("write hex7seg ");	
+			}
+
+
+			if(ActualVal <= 6) {
+				for (size_t j = 0; j < 9; j++)
+				{
+					if (sigFlagStop == -1)
+					{
+						break;
+					}
+					
+					ledBrightNess.m_iWBGR  = iFace[ActualVal][j];
+					iResult = write(cdevColLedWrgb[j/3][j%3].m_iDescIO, &ledBrightNess.m_iWBGR, 4);
+					if (iResult < 0) {
+						perror("write LED ");
+
+					}
+
+				}
+			} 
+
+			pause();
 		}
 		
-		Value = ((ActualVal)/10) *16 + ((ActualVal)%10);
-		iResult = write(cdevhex7seg.m_iDescIO, &Value, sizeof(Value));
-		if (iResult < 0) {
-			perror("write hex7seg ");	
-		}
-
-
-		if(ActualVal <= 6) {
-			for (size_t j = 0; j < 9; j++)
-			{
-				if (sigFlagStop == -1)
-				{
-					break;
-				}
-				
-				ledBrightNess.m_iWBGR  = iFace[ActualVal][j];
-				iResult = write(cdevColLedWrgb[j/3][j%3].m_iDescIO, &ledBrightNess.m_iWBGR, 4);
-				if (iResult < 0) {
-					perror("write LED ");
-
-				}
-
-			}
-		} 
-
-		pause();
-	}
 		int status = 0;
 		pid_t w = waitpid(pid, &status, 0);
 		if (w == -1) {
