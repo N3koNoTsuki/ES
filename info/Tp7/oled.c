@@ -44,16 +44,7 @@ int main(int iArgCount, char *apstrArgValue[])
 
 	//---------------- Reservation ----------------//
 	int iResult = 0;
-	const uint8_t radius = 0x3C;
-	const uint16_t centerX = 0x40;
-	const uint16_t centerY = 0x40;
-	const uint16_t taille_buffer = 1024;
-	const double angle_step = (2.0 * M_PI) / (double)taille_buffer;
 	uint8_t BaudRate115200[4] = {0x00, 0x0B, 0x00, 0x19};
-	uint8_t animation_cmd[15];
-	uint16_t x[taille_buffer];
-	uint16_t y[taille_buffer];
-	uint16_t cycle = 0;
 
 	//---------------- Initialisation des drivers ----------------//
 	EcranOled.m_iDescIO = open(EcranOled.m_strFileIO, O_RDWR);
@@ -124,54 +115,49 @@ int main(int iArgCount, char *apstrArgValue[])
 		close(EcranOled.m_iDescIO);
 		return -1;
 	}
-
-
-	for (uint16_t angleDeg = 0; angleDeg < taille_buffer && sigFlagStop != -1; angleDeg++)
+	uint16_t media_ok = 0;
+	if (goldelox_media_init(EcranOled.m_iDescIO, &media_ok) < 0)
 	{
-		double angleRad = angleDeg * angle_step;
-		x[angleDeg] = (uint16_t)lround((double)centerX + radius  * cos(angleRad));
-		y[angleDeg] = (uint16_t)lround((double)centerY + radius  * sin(angleRad));
-		#ifdef DEBUG
-		printf("Valeur de x[%u] : %u\tValeur de y[%u] : %u\n\r", angleDeg, x[angleDeg], angleDeg, y[angleDeg]);
-		#endif
+		perror("goldelox_media_init");
+		goto cleanup;
+	}
+	if (media_ok == 0)
+	{
+		fprintf(stderr, "Media Init: pas de carte ou init impossible (value=0)\n\r"); // 
+		goto cleanup;
+	}
+	const uint32_t VIDEO_BASE_SECTOR = 4096; // secteur où l'image/vidéo est écrite (dd seek)
+	if (goldelox_set_sector_address(EcranOled.m_iDescIO, VIDEO_BASE_SECTOR) < 0)
+	{
+		perror("goldelox_set_sector_address");
+		goto cleanup;
 	}
 
-	clearcmd(animation_cmd, sizeof(animation_cmd));
-	build_circle_cmd(animation_cmd, 0xCD, centerX, centerY, radius, 0x07E0);
-	if (SendCmd(EcranOled.m_iDescIO, animation_cmd, OLED_CMD_CIRCLE_LEN) < 0)
-	{
-		sigFlagStop = -1;
-	}
-	clearcmd(animation_cmd, sizeof(animation_cmd));
-	build_circle_cmd(animation_cmd, 0xCD, centerX, centerY, radius + 1, 0x07E0);
-	if (SendCmd(EcranOled.m_iDescIO, animation_cmd, OLED_CMD_CIRCLE_LEN) < 0)
-	{
-		sigFlagStop = -1;
-	}
-	clearcmd(animation_cmd, sizeof(animation_cmd));
-	build_line_cmd(animation_cmd, centerX, centerY, x[0], y[0], 0x07E0);
-	if (SendCmd(EcranOled.m_iDescIO, animation_cmd, OLED_CMD_LINE_LEN) < 0)
-	{
-		sigFlagStop = -1;
-	}
+	const uint16_t X0 = 0;        // TODO: position écran
+	const uint16_t Y0 = 0;        // TODO: position écran
+	const uint16_t NB_FRAMES = 1; // nombre de frames disponibles dans le .raw
+	const int FRAME_DELAY_US = 15000; // ~15 ms => ~66 fps (à ajuster)
 
+	uint16_t frame = 0;
 
 	while (sigFlagStop != -1)
 	{
 		//---------------- Animation ----------------//
-
-		clearcmd(animation_cmd, sizeof(animation_cmd));
-		build_line_cmd(animation_cmd, centerX, centerY, x[cycle % taille_buffer], y[cycle % taille_buffer], 0x07E0);
-		if (SendCmd(EcranOled.m_iDescIO, animation_cmd, OLED_CMD_LINE_LEN) < 0)
+		if (goldelox_video_frame_raw(EcranOled.m_iDescIO, X0, Y0, frame) < 0)
 		{
-			sigFlagStop = -1;
+			perror("goldelox_video_frame_raw");
 			break;
 		}
-		cycle = (cycle + 1) % taille_buffer;
+
+		frame++;
+		if (frame >= NB_FRAMES) frame = 0;
+
+		usleep(FRAME_DELAY_US);
 
 	}
 
 	//---------------- Setting down ----------------//
+cleanup:
 	printf("\n\033[F\033[KSetting down\n\r");
 	iResult = CleaOled(EcranOled.m_iDescIO);
 	if (iResult < 0)

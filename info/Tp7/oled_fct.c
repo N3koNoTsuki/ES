@@ -126,3 +126,121 @@ void Build_ChangeColor_cmd(uint8_t *cmd, uint16_t __Old, uint16_t __New)
 	cmd[4] = (__New >> 8) & 0xFF;
 	cmd[5] = __New & 0xFF;
 }
+
+int goldelox_media_init(int fd, uint16_t* out_value)
+{
+	// Cmd: 0xFF, 0xB1 
+	const uint8_t cmd[] = {0xFF, 0xB1};
+	if (write_all(fd, cmd, sizeof(cmd)) < 0) return -1;
+
+	// Resp: ACK + value(word) 
+	if (goldelox_wait_ack(fd, 300) < 0) return -1;
+
+	uint8_t v[2];
+	if (read_exact_timeout(fd, v, 2, 300) < 0) return -1;
+
+	if (out_value) *out_value = (uint16_t)((v[0] << 8) | v[1]);
+	return 0;
+}
+
+int goldelox_set_sector_address(int fd, uint32_t sector_addr)
+{
+	// Cmd: 0xFFB8, HIword, LOword 
+	uint16_t hi = (uint16_t)(sector_addr >> 16);
+	uint16_t lo = (uint16_t)(sector_addr & 0xFFFF);
+
+	uint8_t pkt[2 + 2 + 2];
+	pkt[0] = 0xFF; pkt[1] = 0xB8;
+	put_u16_be(&pkt[2], hi);
+	put_u16_be(&pkt[4], lo);
+
+	if (write_all(fd, pkt, sizeof(pkt)) < 0) return -1;
+
+	// Resp: ACK 
+	return goldelox_wait_ack(fd, 300);
+}
+
+int goldelox_set_byte_address(int fd, uint32_t byte_addr)
+{
+	// Cmd: 0xFFB9, HIword, LOword 
+	uint16_t hi = (uint16_t)(byte_addr >> 16);
+	uint16_t lo = (uint16_t)(byte_addr & 0xFFFF);
+
+	uint8_t pkt[2 + 2 + 2];
+	pkt[0] = 0xFF; pkt[1] = 0xB9;
+	put_u16_be(&pkt[2], hi);
+	put_u16_be(&pkt[4], lo);
+
+	if (write_all(fd, pkt, sizeof(pkt)) < 0) return -1;
+	return goldelox_wait_ack(fd, 300);
+}
+
+int goldelox_video_frame_raw(int fd, uint16_t x, uint16_t y, uint16_t frame)
+{
+	// Cmd: 0xFFBA, x, y, frameNumber 
+	uint8_t pkt[2 + 2 + 2 + 2];
+	pkt[0] = 0xFF; pkt[1] = 0xBA;
+	put_u16_be(&pkt[2], x);
+	put_u16_be(&pkt[4], y);
+	put_u16_be(&pkt[6], frame);
+
+	if (write_all(fd, pkt, sizeof(pkt)) < 0) return -1;
+
+	// Resp: ACK 
+	return goldelox_wait_ack(fd, 300);
+}
+
+
+int read_exact_timeout(int fd, uint8_t* buf, size_t len, int timeout_ms)
+{
+	size_t off = 0;
+	while (off < len)
+	{
+		fd_set rfds;
+		FD_ZERO(&rfds);
+		FD_SET(fd, &rfds);
+
+		struct timeval tv;
+		tv.tv_sec  = timeout_ms / 1000;
+		tv.tv_usec = (timeout_ms % 1000) * 1000;
+
+		int r = select(fd + 1, &rfds, NULL, NULL, &tv);
+		if (r < 0)
+		{
+			if (errno == EINTR) continue;
+			return -1;
+		}
+		if (r == 0)
+		{
+			errno = ETIMEDOUT;
+			return -1;
+		}
+
+		ssize_t rd = read(fd, buf + off, len - off);
+		if (rd < 0)
+		{
+			if (errno == EINTR) continue;
+			return -1;
+		}
+		if (rd == 0)
+		{
+			errno = EIO;
+			return -1;
+		}
+		off += (size_t)rd;
+	}
+	return 0;
+}
+
+void put_u16_be(uint8_t out[2], uint16_t v)
+{
+	out[0] = (uint8_t)(v >> 8);
+	out[1] = (uint8_t)(v & 0xFF);
+}
+
+int goldelox_wait_ack(int fd, int timeout_ms)
+{
+	uint8_t ack = 0;
+	if (read_exact_timeout(fd, &ack, 1, timeout_ms) < 0) return -1;
+	return (ack == 0x06) ? 0 : -1; // 0x06 = ACK 
+}

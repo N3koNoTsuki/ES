@@ -44,4 +44,12 @@ int SendCmd(int __Fd, const uint8_t * __buf, size_t len);
 void build_circle_cmd(uint8_t *cmd, uint8_t opcode, uint16_t x, uint16_t y, uint16_t r, uint16_t color);
 void build_line_cmd(uint8_t *cmd, uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2, uint16_t color);
 void Build_ChangeColor_cmd(uint8_t *cmd, uint16_t __Old, uint16_t __New);
+int goldelox_media_init(int fd, uint16_t* out_value);
+int goldelox_set_sector_address(int fd, uint32_t sector_addr);
+int goldelox_set_byte_address(int fd, uint32_t byte_addr);
+int goldelox_video_frame_raw(int fd, uint16_t x, uint16_t y, uint16_t frame);
+int read_exact_timeout(int fd, uint8_t* buf, size_t len, int timeout_ms);
+void put_u16_be(uint8_t out[2], uint16_t v);
+int goldelox_wait_ack(int fd, int timeout_ms);
+
 #endif // #if !defined __OLED_H__
