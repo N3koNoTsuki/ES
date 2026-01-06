@@ -10,99 +10,73 @@
 
 #include "oled.h"
 
-sig_atomic_t sigFlagStop = 0;
+volatile sig_atomic_t sigFlagStop = 0;
 
 void gestionnaire_signal(int iNumSignal);
 
 void gestionnaire_signal(int iNumSignal)
 {
-
-	switch (iNumSignal)
+	if (iNumSignal == SIGINT || iNumSignal == SIGTERM)
 	{
-
-	case SIGINT:
 		sigFlagStop = -1;
-		break;
-
-	case SIGTERM:
-		sigFlagStop = -1;
-		break;
-
-	case SIGALRM:
-		break;
-
-	default:
-		fprintf(stdout, "GstSig : Nothing to do \n");
-		break;
 	}
 }
 
 int main(int iArgCount, char *apstrArgValue[])
 {
-	printf("\033c");
+	// Clear console at startup
+	printf("\033[2J\033[HDebut du programme\n\r");
+	fflush(stdout);
 
-
-#pragma region Gestion des signaux
-				//---------------- Gestion des signaux ----------------//
+	//---------------- Gestion des signaux ----------------//
 	signal(SIGINT, gestionnaire_signal);
 	signal(SIGTERM, gestionnaire_signal);
 	signal(SIGALRM, gestionnaire_signal);
-#pragma endregion
 
-
-#pragma region Drivers
-				//---------------- Drivers ----------------//
+	//---------------- Drivers ----------------//
 	struct TCharDevice EcranOled = {
 		.m_strFileIO = "/dev/ttyAL0",
 		.m_iDescIO = -1,
 	};
-#pragma endregion
 
-
-#pragma region Liaison serie RS-232
-				//---------------- Liaison serie RS-232 ----------------//
+	//---------------- Liaison serie RS-232 ----------------//
 	struct termios LiasonOled, LiasonOled_Old = {.c_iflag = 0, .c_oflag = 0, .c_cflag = 0, .c_lflag = 0};
-#pragma endregion
 
-
-#pragma region Reservation
-				//---------------- Reservation ----------------//
+	//---------------- Reservation ----------------//
 	int iResult = 0;
-	u_int8_t clear[2] = {0xFF, 0xD7};
-	u_int8_t home[6] = {0xFF, 0xE4, 0x00, 0x05, 0x00, 0x03};
-	u_int8_t changeColor[6] = {0xFF, 0xBE, 0x00, 0x00, 0x00, 0x1F};
-	u_int8_t circle[10] = {0xFF, 0xCD, 0x00, 0x46, 0x00, 0x46, 0x00, 0x14, 0x80, 0x10};
-	u_int8_t command[4] = {0xFF, 0xFE, 0x00, 0x39};
-	u_int8_t BaudRate115200[4] = {0x00, 0x0B, 0x00, 0x19};
-	u_int8_t ack = 0;
-#pragma endregion
+	const uint8_t radius = 0x3C;
+	const uint16_t centerX = 0x40;
+	const uint16_t centerY = 0x40;
+	const uint16_t taille_buffer = 1024;
+	const double angle_step = (2.0 * M_PI) / (double)taille_buffer;
+	uint8_t BaudRate115200[4] = {0x00, 0x0B, 0x00, 0x19};
+	uint8_t animation_cmd[15];
+	uint16_t x[taille_buffer];
+	uint16_t y[taille_buffer];
+	uint16_t cycle = 0;
 
-
-#pragma region Initialisation des drivers
-				//---------------- Initialisation des drivers ----------------//
-	EcranOled.m_iDescIO = open(EcranOled.m_strFileIO, O_RDWR | O_NONBLOCK);
+	//---------------- Initialisation des drivers ----------------//
+	EcranOled.m_iDescIO = open(EcranOled.m_strFileIO, O_RDWR);
 	if (EcranOled.m_iDescIO < 0)
 	{
 		perror("open");
 		return -1;
 	}
-#pragma endregion
-
-
-#pragma region Configuration de la liaison RS-232 
-				//---------------- Configuration de la liaison RS-232 ----------------//
-	tcgetattr(EcranOled.m_iDescIO, &LiasonOled);
+	//---------------- Configuration de la liaison RS-232 ----------------//
+	if (tcgetattr(EcranOled.m_iDescIO, &LiasonOled) < 0)
+	{
+		perror("tcgetattr");
+		close(EcranOled.m_iDescIO);
+		return -1;
+	}
 	memcpy(&LiasonOled_Old, &LiasonOled, sizeof(LiasonOled));
 	LiasonOled_Old = LiasonOled; // Buffer pour enregistrer les params par defauts
-
 	cfmakeraw(&LiasonOled);
 	LiasonOled.c_cflag |= (CLOCAL | CREAD); // ignore modem control lines and enable receiver
 	LiasonOled.c_cflag &= ~PARENB;			// no parity
 	LiasonOled.c_cflag &= ~CSTOPB;			// 1 stop bit
 	LiasonOled.c_cflag &= ~CSIZE;			// clear data bits setting
 	LiasonOled.c_cflag |= CS8;				// 8 data bits
-	LiasonOled.c_cc[VTIME] = 1;				// inter-character timer unused
-	LiasonOled.c_cc[VMIN] = 0;				// blocking read until 0 character arrives
 	iResult = cfsetospeed(&LiasonOled, B9600);
 	if (iResult < 0)
 	{
@@ -134,7 +108,7 @@ int main(int iArgCount, char *apstrArgValue[])
 		close(EcranOled.m_iDescIO);
 		return -1;
 	}
-	sleep(1);
+	sleep(1);;
 	iResult = cfsetspeed(&LiasonOled, B115200);
 	if (iResult < 0)
 	{
@@ -150,80 +124,66 @@ int main(int iArgCount, char *apstrArgValue[])
 		close(EcranOled.m_iDescIO);
 		return -1;
 	}
-	sleep(1);
-	iResult = read(EcranOled.m_iDescIO, &ack, sizeof(ack));
-	if (iResult == -1)
-	{
-		printf("Error %d reading from device %s: %s\n", errno, EcranOled.m_strFileIO, strerror(errno));
-	}
-	else if (ack == 0x06)
-	{
-		printf("Ack received from device %s\n", EcranOled.m_strFileIO);
-		ack = 0;
-	}
-	else
-	{
-		printf("Bad ack received from device %s: 0x%02X\n", EcranOled.m_strFileIO, ack);
-		ack = 0;
-	}
-	if (cfgetospeed(&LiasonOled) == B115200 && cfgetispeed(&LiasonOled) == B115200)
-	{
-		fprintf(stderr, "baudrate changed to 115200\n");
-	}
-#pragma endregion
-/*
-#pragma region Affiche un cercle pour tester			
-				//---------------- Affiche un cercle pour tester ----------------//
-	iResult = write(EcranOled.m_iDescIO, circle, sizeof(circle));
-	if (iResult <0)
-	{
-		
-		perror("Write ");
-	}
-	iResult = read(EcranOled.m_iDescIO, &ack, sizeof(ack));
-	if (iResult <0)
-	{
-		
-		perror("read ");
-	}
-#pragma endregion
-	*/
 
-#pragma region Animation
+
+	for (uint16_t angleDeg = 0; angleDeg < taille_buffer && sigFlagStop != -1; angleDeg++)
+	{
+		double angleRad = angleDeg * angle_step;
+		x[angleDeg] = (uint16_t)lround((double)centerX + radius  * cos(angleRad));
+		y[angleDeg] = (uint16_t)lround((double)centerY + radius  * sin(angleRad));
+		#ifdef DEBUG
+		printf("Valeur de x[%u] : %u\tValeur de y[%u] : %u\n\r", angleDeg, x[angleDeg], angleDeg, y[angleDeg]);
+		#endif
+	}
+
+	clearcmd(animation_cmd, sizeof(animation_cmd));
+	build_circle_cmd(animation_cmd, 0xCD, centerX, centerY, radius, 0x07E0);
+	if (SendCmd(EcranOled.m_iDescIO, animation_cmd, OLED_CMD_CIRCLE_LEN) < 0)
+	{
+		sigFlagStop = -1;
+	}
+	clearcmd(animation_cmd, sizeof(animation_cmd));
+	build_circle_cmd(animation_cmd, 0xCD, centerX, centerY, radius + 1, 0x07E0);
+	if (SendCmd(EcranOled.m_iDescIO, animation_cmd, OLED_CMD_CIRCLE_LEN) < 0)
+	{
+		sigFlagStop = -1;
+	}
+	clearcmd(animation_cmd, sizeof(animation_cmd));
+	build_line_cmd(animation_cmd, centerX, centerY, x[0], y[0], 0x07E0);
+	if (SendCmd(EcranOled.m_iDescIO, animation_cmd, OLED_CMD_LINE_LEN) < 0)
+	{
+		sigFlagStop = -1;
+	}
+
+
 	while (sigFlagStop != -1)
 	{
-				//---------------- Animation ----------------//
+		//---------------- Animation ----------------//
 
-
-
-
-
-
+		clearcmd(animation_cmd, sizeof(animation_cmd));
+		build_line_cmd(animation_cmd, centerX, centerY, x[cycle % taille_buffer], y[cycle % taille_buffer], 0x07E0);
+		if (SendCmd(EcranOled.m_iDescIO, animation_cmd, OLED_CMD_LINE_LEN) < 0)
+		{
+			sigFlagStop = -1;
+			break;
+		}
+		cycle = (cycle + 1) % taille_buffer;
 
 	}
-#pragma endregion
 
-
-#pragma region Setting down
-
-				//---------------- Setting down ----------------//
-	iResult = write(EcranOled.m_iDescIO, clear, sizeof(clear));
-	if (iResult == -1)
+	//---------------- Setting down ----------------//
+	printf("\n\033[F\033[KSetting down\n\r");
+	iResult = CleaOled(EcranOled.m_iDescIO);
+	if (iResult < 0)
 	{
-		printf("\033[2K\rError %d writing to device %s: %s\n\n", errno, EcranOled.m_strFileIO, strerror(errno));
-	}
-	iResult = read(EcranOled.m_iDescIO, &ack, sizeof(ack));
-	if (iResult == -1)
-	{
-		printf("\033[2K\rError %d reading from device %s: %s\n\n", errno, EcranOled.m_strFileIO, strerror(errno));
+		printf("Error %d clearing device %s: %s\n\r", errno, EcranOled.m_strFileIO, strerror(errno));
 	}
 	tcsetattr(EcranOled.m_iDescIO, TCSANOW, &LiasonOled_Old); // restore old settings
 	if (close(EcranOled.m_iDescIO) == -1)
 	{
-		printf("\033[2K\rError %d closing device %s: %s\n\n", errno, EcranOled.m_strFileIO, strerror(errno));
+		printf("Error %d closing device %s: %s\n\r", errno, EcranOled.m_strFileIO, strerror(errno));
 		return -1;
 	}
-	fprintf(stdout, "\033[2K\rFin du programme\n\r");
-#pragma endregion
+	fprintf(stdout, "Fin du programme\n\r");
 	return (iResult);
 }

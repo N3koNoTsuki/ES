@@ -8,7 +8,7 @@ CROSS_COMPILE = arm-none-linux-gnueabihf-
 CC = $(CROSS_COMPILE)gcc
 INSTALL = install
 CFLAGS =  -g -Wall
-LDFLAGS = -g -Wall  
+LDFLAGS = -g -Wall -lm  
 
 
 PROGS     = oled
@@ -52,6 +52,5 @@ depend:
 # DO NOT DELETE
 oled.o: oled.h 
 oled_fct.o: oled.h
-
 
 

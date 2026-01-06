@@ -8,7 +8,7 @@
 
 #if !defined __OLED_H__
 #define      __OLED_H__
-#define DEBUG
+//#define DEBUG 
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -21,6 +21,15 @@
 #include <fcntl.h>
 #include <termios.h>
 #include <signal.h>
+#include <math.h>
+
+#define OLED_CMD_CIRCLE_LEN 10
+#define OLED_CMD_LINE_LEN 12
+#define OLED_CMD_CHANGE_COLOR_LEN 6
+
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
 
 struct TCharDevice {
 	char 	m_strFileIO[60];
@@ -32,4 +41,7 @@ struct TCharDevice {
 void clearcmd(uint8_t* cmd, size_t len);
 int CleaOled(int __Fd);
 int SendCmd(int __Fd, const uint8_t * __buf, size_t len);
+void build_circle_cmd(uint8_t *cmd, uint8_t opcode, uint16_t x, uint16_t y, uint16_t r, uint16_t color);
+void build_line_cmd(uint8_t *cmd, uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2, uint16_t color);
+void Build_ChangeColor_cmd(uint8_t *cmd, uint16_t __Old, uint16_t __New);
 #endif // #if !defined __OLED_H__
