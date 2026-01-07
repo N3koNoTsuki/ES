@@ -23,6 +23,7 @@
 #include <signal.h>
 #include <math.h>
 
+
 #define OLED_CMD_CIRCLE_LEN 10
 #define OLED_CMD_LINE_LEN 12
 #define OLED_CMD_CHANGE_COLOR_LEN 6
@@ -36,20 +37,25 @@ struct TCharDevice {
 	int		m_iDescIO;
 };
 
+enum BaudRate {
+    BAUDRATE_9600 = 9600,
+    BAUDRATE_115200 = 115200
+};
+enum DebugLevel {
+    DEBUG_NONE,
+    DEBUG_ERROR,
+    DEBUG_INFO,
+    DEBUG_VERBOSE
+};
 
 
 void clearcmd(uint8_t* cmd, size_t len);
-int CleaOled(int __Fd);
+int ClearOled(int __Fd);
 int SendCmd(int __Fd, const uint8_t * __buf, size_t len);
 void build_circle_cmd(uint8_t *cmd, uint8_t opcode, uint16_t x, uint16_t y, uint16_t r, uint16_t color);
 void build_line_cmd(uint8_t *cmd, uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2, uint16_t color);
 void Build_ChangeColor_cmd(uint8_t *cmd, uint16_t __Old, uint16_t __New);
-int goldelox_media_init(int fd, uint16_t* out_value);
-int goldelox_set_sector_address(int fd, uint32_t sector_addr);
-int goldelox_set_byte_address(int fd, uint32_t byte_addr);
-int goldelox_video_frame_raw(int fd, uint16_t x, uint16_t y, uint16_t frame);
-int read_exact_timeout(int fd, uint8_t* buf, size_t len, int timeout_ms);
-void put_u16_be(uint8_t out[2], uint16_t v);
-int goldelox_wait_ack(int fd, int timeout_ms);
+int init_media(int __Fd, uint16_t *__Ret);
+int change_baudrate(struct TCharDevice device, struct termios* TermConfig, enum BaudRate baudRate, enum DebugLevel debugLevel);
 
 #endif // #if !defined __OLED_H__

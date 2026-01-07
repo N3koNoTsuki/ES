@@ -44,7 +44,6 @@ int main(int iArgCount, char *apstrArgValue[])
 
 	//---------------- Reservation ----------------//
 	int iResult = 0;
-	uint8_t BaudRate115200[4] = {0x00, 0x0B, 0x00, 0x19};
 
 	//---------------- Initialisation des drivers ----------------//
 	EcranOled.m_iDescIO = open(EcranOled.m_strFileIO, O_RDWR);
@@ -68,7 +67,9 @@ int main(int iArgCount, char *apstrArgValue[])
 	LiasonOled.c_cflag &= ~CSTOPB;			// 1 stop bit
 	LiasonOled.c_cflag &= ~CSIZE;			// clear data bits setting
 	LiasonOled.c_cflag |= CS8;				// 8 data bits
-	iResult = cfsetospeed(&LiasonOled, B9600);
+	LiasonOled.c_cc[VTIME] = 1;
+	LiasonOled.c_cc[VMIN] = 0;
+	iResult = cfsetspeed(&LiasonOled, B9600);
 	if (iResult < 0)
 	{
 		perror("cfsetspeed");
@@ -90,80 +91,69 @@ int main(int iArgCount, char *apstrArgValue[])
 		close(EcranOled.m_iDescIO);
 		return -1;
 	}
-	sleep(1);
-	iResult = write(EcranOled.m_iDescIO, BaudRate115200, sizeof(BaudRate115200));
+	sleep(3);
+	
+	iResult = change_baudrate(EcranOled, &LiasonOled, BAUDRATE_115200, DEBUG_NONE);
 	if (iResult < 0)
 	{
-		perror("Set Baud");
-		tcsetattr(EcranOled.m_iDescIO, TCSANOW, &LiasonOled_Old); // restore old settings
-		close(EcranOled.m_iDescIO);
 		return -1;
 	}
-	sleep(1);;
-	iResult = cfsetspeed(&LiasonOled, B115200);
+	printf("Initialisation finished\n\r");
+	
+
+	//----------------Init Media-----------------//
+	uint16_t err = 0;
+	iResult = init_media(EcranOled.m_iDescIO, &err);
 	if (iResult < 0)
 	{
-		perror("cfsetspeed");
-		close(EcranOled.m_iDescIO);
-		return -1;
-	}
-	iResult = tcsetattr(EcranOled.m_iDescIO, TCSANOW, &LiasonOled);
-	if (iResult < 0)
-	{
-		perror("tcsetattr");
-		tcsetattr(EcranOled.m_iDescIO, TCSANOW, &LiasonOled_Old); // restore old settings
-		close(EcranOled.m_iDescIO);
-		return -1;
-	}
-	uint16_t media_ok = 0;
-	if (goldelox_media_init(EcranOled.m_iDescIO, &media_ok) < 0)
-	{
-		perror("goldelox_media_init");
+		printf("%i\n\r", iResult);
+		printf("error init Media : %2x\n\r", err);
 		goto cleanup;
 	}
-	if (media_ok == 0)
+	printf("Initialisation media ok\n\r");
+
+	const uint8_t cmd_SetByteAdresse[6] = {0xFF, 0xB9, 0x00, 0x20, 0x00, 0x00};
+	iResult = SendCmd(EcranOled.m_iDescIO, cmd_SetByteAdresse, sizeof(cmd_SetByteAdresse));
+	if (iResult < 0)
 	{
-		fprintf(stderr, "Media Init: pas de carte ou init impossible (value=0)\n\r"); // 
-		goto cleanup;
-	}
-	const uint32_t VIDEO_BASE_SECTOR = 4096; // secteur où l'image/vidéo est écrite (dd seek)
-	if (goldelox_set_sector_address(EcranOled.m_iDescIO, VIDEO_BASE_SECTOR) < 0)
-	{
-		perror("goldelox_set_sector_address");
+		printf("error Set Byte Adresse : %2x\n\r", iResult);
 		goto cleanup;
 	}
 
-	const uint16_t X0 = 0;        // TODO: position écran
-	const uint16_t Y0 = 0;        // TODO: position écran
-	const uint16_t NB_FRAMES = 1; // nombre de frames disponibles dans le .raw
-	const int FRAME_DELAY_US = 15000; // ~15 ms => ~66 fps (à ajuster)
+	const uint8_t cmd_DisplayVideoRaw[6] = {0xFF, 0xBB, 0x00, 0x00, 0x00, 0x00};
+	iResult = SendCmd(EcranOled.m_iDescIO, cmd_DisplayVideoRaw, sizeof(cmd_DisplayVideoRaw));
+	if (iResult < 0)
+	{
+		printf("error Display Video Raw : %2x\n\r", iResult);
+		goto cleanup;
+	}
+	
+	printf("Fin Video\n\r");
 
-	uint16_t frame = 0;
+
+	//---------------- Main loop ----------------//
 
 	while (sigFlagStop != -1)
 	{
 		//---------------- Animation ----------------//
-		if (goldelox_video_frame_raw(EcranOled.m_iDescIO, X0, Y0, frame) < 0)
-		{
-			perror("goldelox_video_frame_raw");
-			break;
-		}
 
-		frame++;
-		if (frame >= NB_FRAMES) frame = 0;
-
-		usleep(FRAME_DELAY_US);
 
 	}
 
 	//---------------- Setting down ----------------//
 cleanup:
 	printf("\n\033[F\033[KSetting down\n\r");
-	iResult = CleaOled(EcranOled.m_iDescIO);
+	iResult = ClearOled(EcranOled.m_iDescIO);
 	if (iResult < 0)
 	{
 		printf("Error %d clearing device %s: %s\n\r", errno, EcranOled.m_strFileIO, strerror(errno));
 	}
+	iResult = change_baudrate(EcranOled, &LiasonOled, BAUDRATE_9600, DEBUG_NONE);
+	if (iResult < 0)
+	{
+		return -1;
+	}
+	
 	tcsetattr(EcranOled.m_iDescIO, TCSANOW, &LiasonOled_Old); // restore old settings
 	if (close(EcranOled.m_iDescIO) == -1)
 	{

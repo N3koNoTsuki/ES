@@ -1,57 +1,18 @@
 #include "oled.h"
 
-static int write_all(int fd, const uint8_t *buf, size_t len)
-{
-	size_t written_total = 0;
-	while (written_total < len)
-	{
-		ssize_t written = write(fd, buf + written_total, len - written_total);
-		if (written < 0)
-		{
-			if (errno == EINTR)
-			{
-				continue;
-			}
-			return -1;
-		}
-		written_total += (size_t)written;
-	}
-	return 0;
-}
-
-static int read_ack_byte(int fd, uint8_t *ack)
-{
-	ssize_t read_len;
-	do
-	{
-		read_len = read(fd, ack, sizeof(*ack));
-	} while (read_len < 0 && errno == EINTR);
-
-	if (read_len < 0)
-	{
-		return -1;
-	}
-	if (read_len == 0)
-	{
-		errno = EIO;
-		return -1;
-	}
-	return 0;
-}
-
 void clearcmd(uint8_t* cmd, size_t len){
     memset(cmd, 0, len);
 }
 
-int CleaOled(int __Fd){
+int ClearOled(int __Fd){
     const uint8_t cmd[2] = {0xFF, 0xD7};
     uint8_t RetVal = 0;
 
-	if (write_all(__Fd, cmd, sizeof(cmd)) < 0)
+	if (write(__Fd, cmd, sizeof(cmd)) < 0)
 	{
 		return -1;
 	}
-	if (read_ack_byte(__Fd, &RetVal) < 0)
+	if (read(__Fd, &RetVal, sizeof(RetVal)) < 0)
 	{
 		return -2;
 	}
@@ -66,15 +27,14 @@ int SendCmd(int __Fd, const uint8_t * __buf, size_t len){
     #ifdef DEBUG
     #endif
 
-	if (write_all(__Fd, __buf, len) < 0)
+	if (write(__Fd, __buf, len) < 0)
 	{
 		#ifdef DEBUG
 		perror("write ");
 		#endif
 		return -1; // propagate write error
 	}
-
-	if (read_ack_byte(__Fd, &RetVal) < 0)
+	if (read(__Fd, &RetVal, sizeof(RetVal)) < 0)
 	{
 		#ifdef DEBUG
 		perror("read ");
@@ -84,7 +44,6 @@ int SendCmd(int __Fd, const uint8_t * __buf, size_t len){
 
 	return RetVal;
 }
-
 
 void build_circle_cmd(uint8_t *cmd, uint8_t opcode, uint16_t x, uint16_t y, uint16_t r, uint16_t color)
 {
@@ -116,7 +75,6 @@ void build_line_cmd(uint8_t *cmd, uint16_t x1, uint16_t y1, uint16_t x2, uint16_
 	cmd[11] = color & 0xFF;
 }
 
-
 void Build_ChangeColor_cmd(uint8_t *cmd, uint16_t __Old, uint16_t __New)
 {
     cmd[0] = 0xFF;
@@ -127,120 +85,163 @@ void Build_ChangeColor_cmd(uint8_t *cmd, uint16_t __Old, uint16_t __New)
 	cmd[5] = __New & 0xFF;
 }
 
-int goldelox_media_init(int fd, uint16_t* out_value)
+static int read_exact(int fd, void *buf, size_t n)
 {
-	// Cmd: 0xFF, 0xB1 
-	const uint8_t cmd[] = {0xFF, 0xB1};
-	if (write_all(fd, cmd, sizeof(cmd)) < 0) return -1;
+    uint8_t *p = (uint8_t *)buf;
+    size_t got = 0;
 
-	// Resp: ACK + value(word) 
-	if (goldelox_wait_ack(fd, 300) < 0) return -1;
-
-	uint8_t v[2];
-	if (read_exact_timeout(fd, v, 2, 300) < 0) return -1;
-
-	if (out_value) *out_value = (uint16_t)((v[0] << 8) | v[1]);
-	return 0;
+    while (got < n) {
+        ssize_t r = read(fd, p + got, n - got);
+        if (r < 0) {
+            if (errno == EINTR) continue;
+            return -1;
+        }
+        if (r == 0) {
+            return -2; 
+        }
+        got += (size_t)r;
+    }
+    return 0;
 }
 
-int goldelox_set_sector_address(int fd, uint32_t sector_addr)
+int init_media(int __Fd, uint16_t *__Ret)
 {
-	// Cmd: 0xFFB8, HIword, LOword 
-	uint16_t hi = (uint16_t)(sector_addr >> 16);
-	uint16_t lo = (uint16_t)(sector_addr & 0xFFFF);
+    const uint8_t cmd[2] = {0xFF, 0xB1}; 
 
-	uint8_t pkt[2 + 2 + 2];
-	pkt[0] = 0xFF; pkt[1] = 0xB8;
-	put_u16_be(&pkt[2], hi);
-	put_u16_be(&pkt[4], lo);
+    if (write(__Fd, cmd, sizeof(cmd)) != (ssize_t)sizeof(cmd)) {
+        return -1;
+    }
 
-	if (write_all(fd, pkt, sizeof(pkt)) < 0) return -1;
+    uint8_t ack = 0;
+    if (read_exact(__Fd, &ack, 1) != 0) {
+        return -2;
+    }
 
-	// Resp: ACK 
-	return goldelox_wait_ack(fd, 300);
+    uint8_t b[2] = {0, 0};
+    if (read_exact(__Fd, b, 2) != 0) {
+        return -3;
+    }
+
+    uint16_t value = (uint16_t)((b[0] << 8) | b[1]); 
+    *__Ret = value;
+
+    if (ack != 0x06) {   
+		printf("%02X\n\r", ack);     
+        return -4;
+    }
+    if (value == 0) {           
+        return -5;
+    }
+
+    return 0; 
 }
 
-int goldelox_set_byte_address(int fd, uint32_t byte_addr)
-{
-	// Cmd: 0xFFB9, HIword, LOword 
-	uint16_t hi = (uint16_t)(byte_addr >> 16);
-	uint16_t lo = (uint16_t)(byte_addr & 0xFFFF);
+int change_baudrate(struct TCharDevice device, struct termios* TermConfig, enum BaudRate baudRate, enum DebugLevel debugLevel){
+    int iResult = 0;
+    int BaudRateTermios = 0;
+    u_int8_t ack = 0;
+    u_int8_t BaudRateCmd[4] = {0x00,0x0B,0x00,0x00};
 
-	uint8_t pkt[2 + 2 + 2];
-	pkt[0] = 0xFF; pkt[1] = 0xB9;
-	put_u16_be(&pkt[2], hi);
-	put_u16_be(&pkt[4], lo);
+    // Set baudrate command bytes
+    switch (baudRate)
+    {
+    case BAUDRATE_115200:
+        BaudRateCmd[2] = 0x00;
+        BaudRateCmd[3] = 0x19;
+        BaudRateTermios = B115200;
+        break;
+    case BAUDRATE_9600:
+        BaudRateCmd[2] = 0x01;
+        BaudRateCmd[3] = 0x38;
+        BaudRateTermios = B9600;
+        break;
+    default:
+        if (debugLevel >= DEBUG_ERROR)
+        {
+            printf("Unknown baudrate %d\n", baudRate);
+        }
+        return -1;
+        break;
+    }
 
-	if (write_all(fd, pkt, sizeof(pkt)) < 0) return -1;
-	return goldelox_wait_ack(fd, 300);
-}
+    // Send baudrate command to device
 
-int goldelox_video_frame_raw(int fd, uint16_t x, uint16_t y, uint16_t frame)
-{
-	// Cmd: 0xFFBA, x, y, frameNumber 
-	uint8_t pkt[2 + 2 + 2 + 2];
-	pkt[0] = 0xFF; pkt[1] = 0xBA;
-	put_u16_be(&pkt[2], x);
-	put_u16_be(&pkt[4], y);
-	put_u16_be(&pkt[6], frame);
+    iResult = write(device.m_iDescIO, BaudRateCmd, sizeof(BaudRateCmd));
+    if (iResult == -1 && debugLevel >= DEBUG_ERROR)
+    {
+        printf("Error %d writing to device %s: %s\n", errno, device.m_strFileIO, strerror(errno));
+    }
+    usleep(100000); // wait 100 ms
+    if (debugLevel >= DEBUG_INFO)
+    {
+        printf("Setting terminal %s speed to %i bps...\n", device.m_strFileIO, baudRate);
+    }
+    
+    
+    // Change terminal speed
+   if(cfsetspeed(TermConfig, BaudRateTermios) == -1)
+   {
+        if (debugLevel >= DEBUG_ERROR)
+        {printf("Error %d setting device %s speed: %s\n", errno, device.m_strFileIO, strerror(errno));}
+        close(device.m_iDescIO);
+        return -1;
+   }
+   if (debugLevel >= DEBUG_INFO)
+   {
+		printf("Applying new attributes to terminal %s...\n", device.m_strFileIO);
+   }
+   
 
-	if (write_all(fd, pkt, sizeof(pkt)) < 0) return -1;
+   if(tcsetattr(device.m_iDescIO, TCSANOW, TermConfig) == -1)
+   {
+        if (debugLevel >= DEBUG_ERROR)
+        {printf("Error %d setting device %s attributes: %s\n", errno, device.m_strFileIO, strerror(errno));}
 
-	// Resp: ACK 
-	return goldelox_wait_ack(fd, 300);
-}
+        tcsetattr(device.m_iDescIO, TCSANOW, TermConfig); // restore old settings
+        close(device.m_iDescIO);
+        return -1;
+   }
 
 
-int read_exact_timeout(int fd, uint8_t* buf, size_t len, int timeout_ms)
-{
-	size_t off = 0;
-	while (off < len)
-	{
-		fd_set rfds;
-		FD_ZERO(&rfds);
-		FD_SET(fd, &rfds);
+   // Read ack from device
+   iResult = read(device.m_iDescIO, &ack, sizeof(ack));
+   if (iResult == -1 && debugLevel >= DEBUG_ERROR)
+    {
+       printf("Error %d reading from device %s: %s\n", errno, device.m_strFileIO, strerror(errno));
+    }
+   else if (ack == 0x06 && debugLevel >= DEBUG_INFO)
+    {
+            printf("Ack received from device %s\n", device.m_strFileIO);
+   }else if (debugLevel >= DEBUG_INFO)
+   {
+            printf("Bad ack received from device %s: 0x%02X\n", device.m_strFileIO, ack);
+   }
 
-		struct timeval tv;
-		tv.tv_sec  = timeout_ms / 1000;
-		tv.tv_usec = (timeout_ms % 1000) * 1000;
 
-		int r = select(fd + 1, &rfds, NULL, NULL, &tv);
-		if (r < 0)
-		{
-			if (errno == EINTR) continue;
-			return -1;
-		}
-		if (r == 0)
-		{
-			errno = ETIMEDOUT;
-			return -1;
-		}
+   // Verify new speed of the terminal
+   if (debugLevel >= DEBUG_INFO)
+   {
+    printf("Verifying new speed on device %s...\n", device.m_strFileIO);
+   }
+   
+   if(tcgetattr(device.m_iDescIO, TermConfig) == -1){
+        if (debugLevel >= DEBUG_ERROR)
+        {
+            printf("Error %d getting device %s attributes: %s\n", errno, device.m_strFileIO, strerror(errno));
+        }
+        
+        close(device.m_iDescIO);
+        return -1;
 
-		ssize_t rd = read(fd, buf + off, len - off);
-		if (rd < 0)
-		{
-			if (errno == EINTR) continue;
-			return -1;
-		}
-		if (rd == 0)
-		{
-			errno = EIO;
-			return -1;
-		}
-		off += (size_t)rd;
-	}
-	return 0;
-}
+   }
 
-void put_u16_be(uint8_t out[2], uint16_t v)
-{
-	out[0] = (uint8_t)(v >> 8);
-	out[1] = (uint8_t)(v & 0xFF);
-}
+   if (cfgetospeed(TermConfig) == BaudRateTermios && cfgetispeed(TermConfig) == BaudRateTermios)
+   {
+        if (debugLevel >= DEBUG_INFO)
+        {
+            printf("baudrate changed to %i\n", baudRate);
+        }
+   }
 
-int goldelox_wait_ack(int fd, int timeout_ms)
-{
-	uint8_t ack = 0;
-	if (read_exact_timeout(fd, &ack, 1, timeout_ms) < 0) return -1;
-	return (ack == 0x06) ? 0 : -1; // 0x06 = ACK 
+    return iResult;
 }
