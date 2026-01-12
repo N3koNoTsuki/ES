@@ -108,10 +108,12 @@ int init_media(int __Fd, uint16_t *__Ret)
 {
     const uint8_t cmd[2] = {0xFF, 0xB1}; 
 
+    tcflush(__Fd, TCIFLUSH);
+
     if (write(__Fd, cmd, sizeof(cmd)) != (ssize_t)sizeof(cmd)) {
         return -1;
     }
-
+    usleep(500000);
     uint8_t ack = 0;
     if (read_exact(__Fd, &ack, 1) != 0) {
         return -2;
@@ -165,13 +167,14 @@ int change_baudrate(struct TCharDevice device, struct termios* TermConfig, enum 
     }
 
     // Send baudrate command to device
+    tcflush(device.m_iDescIO, TCIOFLUSH);
 
     iResult = write(device.m_iDescIO, BaudRateCmd, sizeof(BaudRateCmd));
     if (iResult == -1 && debugLevel >= DEBUG_ERROR)
     {
         printf("Error %d writing to device %s: %s\n", errno, device.m_strFileIO, strerror(errno));
     }
-    usleep(100000); // wait 100 ms
+    usleep(120000); // wait 100 ms
     if (debugLevel >= DEBUG_INFO)
     {
         printf("Setting terminal %s speed to %i bps...\n", device.m_strFileIO, baudRate);
@@ -204,7 +207,7 @@ int change_baudrate(struct TCharDevice device, struct termios* TermConfig, enum 
 
 
    // Read ack from device
-   iResult = read(device.m_iDescIO, &ack, sizeof(ack));
+   iResult = read(device.m_iDescIO, &ack, 1);
    if (iResult == -1 && debugLevel >= DEBUG_ERROR)
     {
        printf("Error %d reading from device %s: %s\n", errno, device.m_strFileIO, strerror(errno));
@@ -244,4 +247,34 @@ int change_baudrate(struct TCharDevice device, struct termios* TermConfig, enum 
    }
 
     return iResult;
+}
+
+int media_dump_lines(int fd, int lines)
+{
+    for (int l = 0; l < lines; l++)
+    {
+        printf("%04X : ", l * 16);
+
+        for (int i = 0; i < 16; i++)
+        {
+            const uint8_t cmd[2] = {0xFF, 0xB7}; // Read Byte
+            uint8_t ack;
+            uint8_t v[2];
+
+            if (write(fd, cmd, 2) != 2)
+                return -1;
+
+            if (read_exact(fd, &ack, 1) != 0 || ack != 0x06)
+                return -2;
+
+            if (read_exact(fd, v, 2) != 0)
+                return -3;
+
+            printf("%02X ", v[1]);  // LSB = byte lu
+        }
+
+        printf("\n");
+    }
+
+    return 0;
 }

@@ -28,6 +28,8 @@
 #define OLED_CMD_LINE_LEN 12
 #define OLED_CMD_CHANGE_COLOR_LEN 6
 
+#define SIZE 60000
+
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
 #endif
@@ -57,5 +59,6 @@ void build_line_cmd(uint8_t *cmd, uint16_t x1, uint16_t y1, uint16_t x2, uint16_
 void Build_ChangeColor_cmd(uint8_t *cmd, uint16_t __Old, uint16_t __New);
 int init_media(int __Fd, uint16_t *__Ret);
 int change_baudrate(struct TCharDevice device, struct termios* TermConfig, enum BaudRate baudRate, enum DebugLevel debugLevel);
+int media_dump_lines(int fd, int lines);
 
 #endif // #if !defined __OLED_H__

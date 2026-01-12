@@ -84,7 +84,7 @@ int main(int iArgCount, char *apstrArgValue[])
 		close(EcranOled.m_iDescIO);
 		return -1;
 	}
-	if (fcntl(EcranOled.m_iDescIO, F_SETFL, O_RDWR))
+	if (fcntl(EcranOled.m_iDescIO, F_SETFL, 0))
 	{
 		printf("Error %d setting device %s flags: %s\n", errno, EcranOled.m_strFileIO, strerror(errno));
 		tcsetattr(EcranOled.m_iDescIO, TCSANOW, &LiasonOled_Old); // restore old settings
@@ -112,14 +112,24 @@ int main(int iArgCount, char *apstrArgValue[])
 	}
 	printf("Initialisation media ok\n\r");
 
-	const uint8_t cmd_SetByteAdresse[6] = {0xFF, 0xB9, 0x00, 0x20, 0x00, 0x00};
+	const uint8_t cmd_SetByteAdresse[6] = {0xFF, 0xB9, 0x02, 0x00, 0x00, 0x00};
 	iResult = SendCmd(EcranOled.m_iDescIO, cmd_SetByteAdresse, sizeof(cmd_SetByteAdresse));
-	if (iResult < 0)
+	if (iResult != 0x06)
 	{
 		printf("error Set Byte Adresse : %2x\n\r", iResult);
 		goto cleanup;
 	}
-
+	/*
+	const uint8_t cmd_DisplayVideoFrame[8] = {0xFF, 0xBA, 0x00, 0x00, 0x00, 0x0, 0x00, 0x05};
+	iResult = SendCmd(EcranOled.m_iDescIO, cmd_DisplayVideoFrame, sizeof(cmd_DisplayVideoFrame));
+	if (iResult != 0x06)
+	{
+		printf("error Display Video Frame : %2x\n\r", iResult);
+		goto cleanup;
+	}
+	
+	
+	*/
 	const uint8_t cmd_DisplayVideoRaw[6] = {0xFF, 0xBB, 0x00, 0x00, 0x00, 0x00};
 	iResult = SendCmd(EcranOled.m_iDescIO, cmd_DisplayVideoRaw, sizeof(cmd_DisplayVideoRaw));
 	if (iResult < 0)
@@ -128,18 +138,29 @@ int main(int iArgCount, char *apstrArgValue[])
 		goto cleanup;
 	}
 	
-	printf("Fin Video\n\r");
-
-
+	
 	//---------------- Main loop ----------------//
+	/*
+	const uint8_t cmd_DrawCircle[10] = {0xFF, 0xCD, 0x00, 0x1E, 0x00, 0x1E, 0x00, 0x14, 0x80, 0x10};
+	iResult = SendCmd(EcranOled.m_iDescIO, cmd_DrawCircle, sizeof(cmd_DrawCircle));
+	if (iResult != 0x06)
+	{
+		printf("error Draw circle : %2x\n\r", iResult);
+		goto cleanup;
+	}
+	
+	
+	media_dump_lines(EcranOled.m_iDescIO, 500);   
+	*/
+
+	
 
 	while (sigFlagStop != -1)
 	{
 		//---------------- Animation ----------------//
 
-
 	}
-
+	printf("Fin Video\n\r");
 	//---------------- Setting down ----------------//
 cleanup:
 	printf("\n\033[F\033[KSetting down\n\r");
