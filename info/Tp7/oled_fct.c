@@ -24,6 +24,7 @@ int SendCmd(int __Fd, const uint8_t * __buf, size_t len){
 
     uint8_t RetVal = 0;
 
+    tcflush(__Fd, TCIFLUSH);
     #ifdef DEBUG
     #endif
 
@@ -111,6 +112,38 @@ int init_media(int __Fd, uint16_t *__Ret)
     tcflush(__Fd, TCIFLUSH);
 
     if (write(__Fd, cmd, sizeof(cmd)) != (ssize_t)sizeof(cmd)) {
+        return -1;
+    }
+    usleep(500000);
+    uint8_t ack = 0;
+    if (read_exact(__Fd, &ack, 1) != 0) {
+        return -2;
+    }
+
+    uint8_t b[2] = {0, 0};
+    if (read_exact(__Fd, b, 2) != 0) {
+        return -3;
+    }
+
+    uint16_t value = (uint16_t)((b[0] << 8) | b[1]); 
+    *__Ret = value;
+
+    if (ack != 0x06) {   
+		printf("%02X\n\r", ack);     
+        return -4;
+    }
+    if (value == 0) {           
+        return -5;
+    }
+
+    return 0; 
+}
+
+int SendCmd2RetV(int __Fd, const uint8_t * __buf, size_t len, uint16_t *__Ret)
+{
+    tcflush(__Fd, TCIFLUSH);
+
+    if (write(__Fd, __buf, sizeof(__buf)) != (ssize_t)sizeof(__buf)) {
         return -1;
     }
     usleep(500000);

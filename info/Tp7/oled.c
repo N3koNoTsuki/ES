@@ -44,7 +44,8 @@ int main(int iArgCount, char *apstrArgValue[])
 
 	//---------------- Reservation ----------------//
 	int iResult = 0;
-
+	int gif = 0;
+	sscanf(apstrArgValue[1], "%i",&gif);	
 	//---------------- Initialisation des drivers ----------------//
 	EcranOled.m_iDescIO = open(EcranOled.m_strFileIO, O_RDWR);
 	if (EcranOled.m_iDescIO < 0)
@@ -112,53 +113,85 @@ int main(int iArgCount, char *apstrArgValue[])
 	}
 	printf("Initialisation media ok\n\r");
 
-	const uint8_t cmd_SetByteAdresse[6] = {0xFF, 0xB9, 0x02, 0x00, 0x00, 0x00};
+	//On se place a indexe +7 qui est l'emplacement du nombre de frame 
+	uint8_t cmd_SetByteAdresse[6];
+	if (gif == 1)
+	{
+		/* code */
+		cmd_SetByteAdresse[0] = 0xFF;
+		cmd_SetByteAdresse[1] = 0xB9;
+		cmd_SetByteAdresse[2] = 0x02;
+		cmd_SetByteAdresse[3] = 0x00;
+		cmd_SetByteAdresse[4] = 0x00;
+		cmd_SetByteAdresse[5] = 0x07;
+		printf("GIF 1\n\r");
+	}
+	else
+	{
+		cmd_SetByteAdresse[0] = 0xFF;
+		cmd_SetByteAdresse[1] = 0xB9;
+		cmd_SetByteAdresse[2] = 0x02;
+		cmd_SetByteAdresse[3] = 0x04;
+		cmd_SetByteAdresse[4] = 0x02;
+		cmd_SetByteAdresse[5] = 0x07;
+		printf("GIF 2\n\r");
+	}
+
+	//
+	
 	iResult = SendCmd(EcranOled.m_iDescIO, cmd_SetByteAdresse, sizeof(cmd_SetByteAdresse));
 	if (iResult != 0x06)
 	{
 		printf("error Set Byte Adresse : %2x\n\r", iResult);
 		goto cleanup;
 	}
-	/*
-	const uint8_t cmd_DisplayVideoFrame[8] = {0xFF, 0xBA, 0x00, 0x00, 0x00, 0x0, 0x00, 0x05};
-	iResult = SendCmd(EcranOled.m_iDescIO, cmd_DisplayVideoFrame, sizeof(cmd_DisplayVideoFrame));
-	if (iResult != 0x06)
-	{
-		printf("error Display Video Frame : %2x\n\r", iResult);
-		goto cleanup;
-	}
-	
-	
-	*/
-	const uint8_t cmd_DisplayVideoRaw[6] = {0xFF, 0xBB, 0x00, 0x00, 0x00, 0x00};
-	iResult = SendCmd(EcranOled.m_iDescIO, cmd_DisplayVideoRaw, sizeof(cmd_DisplayVideoRaw));
+
+
+	const uint8_t CmdReadByte[2] = {0xFF, 0xB7};
+	uint16_t nb_frame;
+
+	iResult = SendCmd2RetV(EcranOled.m_iDescIO, CmdReadByte, sizeof(CmdReadByte), &nb_frame);
 	if (iResult < 0)
 	{
-		printf("error Display Video Raw : %2x\n\r", iResult);
+		printf("error Read Byte : %2x\n\r", iResult);
 		goto cleanup;
 	}
+	printf("Valeur adresse (nb frame): %i\n\n\r", nb_frame);
 	
+	//On se remet a la bonne adresse pour la video.
 	
-	//---------------- Main loop ----------------//
-	/*
-	const uint8_t cmd_DrawCircle[10] = {0xFF, 0xCD, 0x00, 0x1E, 0x00, 0x1E, 0x00, 0x14, 0x80, 0x10};
-	iResult = SendCmd(EcranOled.m_iDescIO, cmd_DrawCircle, sizeof(cmd_DrawCircle));
+	cmd_SetByteAdresse[5] = 0x00;
+	
+	iResult = SendCmd(EcranOled.m_iDescIO, cmd_SetByteAdresse, sizeof(cmd_SetByteAdresse));
 	if (iResult != 0x06)
 	{
-		printf("error Draw circle : %2x\n\r", iResult);
+		printf("error Set Byte Adresse def : %2x\n\r", iResult);
 		goto cleanup;
 	}
-	
-	
-	media_dump_lines(EcranOled.m_iDescIO, 500);   
-	*/
 
+	uint8_t cmd_DisplayVideoFrame[8] = {0xFF, 0xBA, 0x00, 0x00, 0x00, 0x0, 0x00, 0x00};
 	
+	//---------------- Main loop ----------------//
 
 	while (sigFlagStop != -1)
 	{
 		//---------------- Animation ----------------//
-
+		
+		for (size_t i = 0; i <= nb_frame && sigFlagStop != -1; i++)
+		{
+			/* code */
+			cmd_DisplayVideoFrame[6] = (i >> 8) & 0xFF;
+			cmd_DisplayVideoFrame[7] = i & 0xFF;
+			printf("\033[F\033[KDisplay Frame : %i\n\r", i);
+			iResult = SendCmd(EcranOled.m_iDescIO, cmd_DisplayVideoFrame, sizeof(cmd_DisplayVideoFrame));
+			if (iResult != 0x06)
+			{
+				printf("error Display Video Frame : %2x\n\r", iResult);
+				goto cleanup;
+			}
+			usleep(30000);
+		}
+		
 	}
 	printf("Fin Video\n\r");
 	//---------------- Setting down ----------------//

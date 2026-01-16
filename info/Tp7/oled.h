@@ -58,6 +58,7 @@ void build_circle_cmd(uint8_t *cmd, uint8_t opcode, uint16_t x, uint16_t y, uint
 void build_line_cmd(uint8_t *cmd, uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2, uint16_t color);
 void Build_ChangeColor_cmd(uint8_t *cmd, uint16_t __Old, uint16_t __New);
 int init_media(int __Fd, uint16_t *__Ret);
+int SendCmd2RetV(int __Fd, const uint8_t * __buf, size_t len, uint16_t *__Ret);
 int change_baudrate(struct TCharDevice device, struct termios* TermConfig, enum BaudRate baudRate, enum DebugLevel debugLevel);
 int media_dump_lines(int fd, int lines);
 
