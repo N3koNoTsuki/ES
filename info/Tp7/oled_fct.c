@@ -7,6 +7,7 @@
  *  - __Buf: output buffer where bytes are stored.
  *  - __N: number of bytes to read.
  * Return: 0 on success, -1 on read error, -2 on EOF before __N bytes.
+ * Author: ChatGPT
  */
 static int read_exact(int __Fd, void *__Buf, size_t __N)
 {
@@ -32,6 +33,7 @@ static int read_exact(int __Fd, void *__Buf, size_t __N)
  * Params:
  *  - __Fd: file descriptor of the OLED device.
  * Return: device status byte, or negative error code.
+ * Author: Jules BELLEVRAS
  */
 int ClearOled(int __Fd){
     const uint8_t cmd[2] = {0xFF, 0xD7};
@@ -56,6 +58,7 @@ int ClearOled(int __Fd){
  *  - __Buf: command buffer to send.
  *  - __Len: number of bytes in command buffer.
  * Return: device status byte, or negative error code.
+ * Author: Jules BELLEVRAS
  */
 int SendCmd(int __Fd, const uint8_t * __Buf, size_t __Len){
 
@@ -90,6 +93,7 @@ int SendCmd(int __Fd, const uint8_t * __Buf, size_t __Len){
  *  - __Buf: command buffer to send.
  *  - __Ret: output pointer to store 16-bit returned value.
  * Return: 0 on success, negative error code on failure/invalid data.
+ * Author: Jules BELLEVRAS
  */
 int SendCmd2RetV(int __Fd, const uint8_t * __Buf, uint16_t *__Ret)
 {
@@ -131,6 +135,8 @@ int SendCmd2RetV(int __Fd, const uint8_t * __Buf, uint16_t *__Ret)
  *  - __BaudRate: target baudrate enum.
  *  - __DbgLvl: debug verbosity level.
  * Return: write/read result or negative error on failure.
+ * Author: Quentin Casagranda
+ * Modified: Jules BELLEVRAS
  */
 int change_baudrate(struct TCharDevice *__Dev, struct termios* __Term, enum BaudRate __BaudRate, enum DebugLevel __DbgLvl){
     int iResult = 0;
@@ -251,6 +257,7 @@ int change_baudrate(struct TCharDevice *__Dev, struct termios* __Term, enum Baud
  *  - __Old: termios buffer for saving previous settings.
  *  - __lenInit: size of termios struct for memcpy.
  * Return: 0 or positive on success, negative error code on failure.
+ * Author: Jules BELLEVRAS
  */
 int init_liaison(struct TCharDevice *__Dev, struct termios *__Init, struct termios *__Old, size_t __lenInit){
     
@@ -309,6 +316,7 @@ int init_liaison(struct TCharDevice *__Dev, struct termios *__Init, struct termi
  *  - __Fd: file descriptor of the OLED device.
  *  - __Ret: output pointer to store 16-bit returned value.
  * Return: 0 on success, negative error code on failure/invalid data.
+ * Author: Jules BELLEVRAS
  */
 int init_media(int __Fd, uint16_t *__Ret)
 {
@@ -345,64 +353,82 @@ int init_media(int __Fd, uint16_t *__Ret)
 }
 
 
-int config_gpio_button(struct TDeviceCharGpIO* gpioButton1, unsigned int eventFlags, enum DebugLevel debugLevel){
+/* config_gpio_button
+ * Role: open GPIO chip and configure two lines as event sources.
+ * Params:
+ *  - __Fds: GPIO device struct to initialize.
+ *  - __EventFlgs: edge trigger flags for the events.
+ *  - __DbgLvl: verbosity for diagnostics.
+ * Return: 0 on success, negative error code on failure.
+ * Author: Quentin Casagranda
+ * Modified: Jules BELLEVRAS
+ */
+int config_gpio_button(struct TDeviceCharGpIO* __Fds, unsigned int __EventFlgs, enum DebugLevel __DbgLvl){
 
     int iResult = 0;
-    gpioButton1->m_DevChar.m_iDescIO = open(gpioButton1->m_DevChar.m_strFileIO, O_RDWR);
-    if (gpioButton1->m_DevChar.m_iDescIO < 0)
+    __Fds->m_DevChar.m_iDescIO = open(__Fds->m_DevChar.m_strFileIO, O_RDWR);
+    if (__Fds->m_DevChar.m_iDescIO < 0)
     {
         perror("open() button1\n\r");
         return -1;
     }
     ////////////////	Récuperation Infos GPIO Bouttons côtés	//////////////
-    memset(&gpioButton1->m_chipinfo,0, sizeof(gpioButton1->m_chipinfo));
-    iResult = ioctl(gpioButton1->m_DevChar.m_iDescIO, GPIO_GET_CHIPINFO_IOCTL,&gpioButton1->m_chipinfo);
-    if (iResult < 0 && debugLevel >= DEBUG_ERROR)
+    memset(&__Fds->m_chipinfo,0, sizeof(__Fds->m_chipinfo));
+    iResult = ioctl(__Fds->m_DevChar.m_iDescIO, GPIO_GET_CHIPINFO_IOCTL,&__Fds->m_chipinfo);
+    if (iResult < 0 && __DbgLvl >= DEBUG_ERROR)
     {
         printf( "Erreur recuperation info Boutton D/G : ");
         printf("\n");
-    }else if (debugLevel >= DEBUG_VERBOSE) {
+    }else if (__DbgLvl >= DEBUG_VERBOSE) {
         printf("//////////////////////	GPIO BOUTTON D/G	////////////////////////\n");
-        printf("name : %s\n" ,gpioButton1->m_chipinfo.name);
-        printf( "label : %s\n",gpioButton1->m_chipinfo.label);
-        printf( "number of gpio : %i\n",gpioButton1->m_chipinfo.lines);
+        printf("name : %s\n" ,__Fds->m_chipinfo.name);
+        printf( "label : %s\n",__Fds->m_chipinfo.label);
+        printf( "number of gpio : %i\n",__Fds->m_chipinfo.lines);
         printf("////////////////////////////////////////////////////////////////////\n");
     }
     
 
     /////////////////////	Config Boutton Droit	////////////////////
-    gpioButton1->m_event_request[0].lineoffset = 0;
-    gpioButton1->m_event_request[0].handleflags = GPIOHANDLE_REQUEST_INPUT;
-    gpioButton1->m_event_request[0].eventflags = eventFlags;
+    __Fds->m_event_request[0].lineoffset = 0;
+    __Fds->m_event_request[0].handleflags = GPIOHANDLE_REQUEST_INPUT;
+    __Fds->m_event_request[0].eventflags = __EventFlgs;
 
-    iResult = ioctl(gpioButton1->m_DevChar.m_iDescIO, GPIO_GET_LINEEVENT_IOCTL,&gpioButton1->m_event_request[0]);
-    if (iResult < 0 && debugLevel >= DEBUG_ERROR)
+    iResult = ioctl(__Fds->m_DevChar.m_iDescIO, GPIO_GET_LINEEVENT_IOCTL,&__Fds->m_event_request[0]);
+    if (iResult < 0 && __DbgLvl >= DEBUG_ERROR)
     {
         perror("erreur configuration comportement Boutton Droit : ");
         printf("\n");
     }
 
     /////////////////////	Config Boutton Gauche	////////////////////
-    gpioButton1->m_event_request[1].lineoffset = 1;
-    gpioButton1->m_event_request[1].handleflags = GPIOHANDLE_REQUEST_INPUT;
-    gpioButton1->m_event_request[1].eventflags = eventFlags;
+    __Fds->m_event_request[1].lineoffset = 1;
+    __Fds->m_event_request[1].handleflags = GPIOHANDLE_REQUEST_INPUT;
+    __Fds->m_event_request[1].eventflags = __EventFlgs;
 
-    iResult = ioctl(gpioButton1->m_DevChar.m_iDescIO, GPIO_GET_LINEEVENT_IOCTL,&gpioButton1->m_event_request[1]);
-    if (iResult < 0 && debugLevel >= DEBUG_ERROR)
+    iResult = ioctl(__Fds->m_DevChar.m_iDescIO, GPIO_GET_LINEEVENT_IOCTL,&__Fds->m_event_request[1]);
+    if (iResult < 0 && __DbgLvl >= DEBUG_ERROR)
     {
         perror("erreur configuration comportement Boutton Gauche: ");
         printf("\n");
     }
 
     ///////////////	Config Poll Bouttons côtés	//////////////////
-    gpioButton1->m_pollfd[0].fd = gpioButton1->m_event_request[0].fd;
-    gpioButton1->m_pollfd[0].events = POLLIN;
-    gpioButton1->m_pollfd[1].fd = gpioButton1->m_event_request[1].fd;
-    gpioButton1->m_pollfd[1].events = POLLIN;
+    __Fds->m_pollfd[0].fd = __Fds->m_event_request[0].fd;
+    __Fds->m_pollfd[0].events = POLLIN;
+    __Fds->m_pollfd[1].fd = __Fds->m_event_request[1].fd;
+    __Fds->m_pollfd[1].events = POLLIN;
 
     return iResult;
 }
 
+/* button_press
+ * Role: poll a GPIO event line and report a button press on falling edge.
+ * Params:
+ *  - __Fds: GPIO device handle struct with pollfd/event buffers.
+ *  - __Idx: index of the GPIO line to check.
+ * Return: 1 on falling edge, 2 on other event, 0 on timeout, -1 on error.
+ * Author: Jules BELLEVRAS
+ */
 int button_press(struct TDeviceCharGpIO *__Fds, int __Idx){
     int __Ret = -1;
     __Ret = poll(&__Fds->m_pollfd[__Idx], 1, 10);
@@ -424,25 +450,32 @@ int button_press(struct TDeviceCharGpIO *__Fds, int __Idx){
     return __Ret;
 }
 
-int check_all_buttons(struct TDeviceCharGpIO* gpioButton1, struct TDeviceCharGpIO* gpioButton2){
-    int ret1 = button_press(gpioButton1, 0);
-    int ret2 = button_press(gpioButton1, 1);
-    int ret3 = button_press(gpioButton2, 0);
-    int ret4 = button_press(gpioButton2, 1);
-
-    if (ret1 == 1)
+/* check_all_buttons
+ * Role: check four button lines and return which one was pressed.
+ * Params:
+ *  - gpioButton1: GPIO device with two lines (indexes 0,1).
+ *  - gpioButton2: GPIO device with two lines (indexes 0,1).
+ * Return: 1..4 for a press, -1 if none pressed or on error.
+ * Author: Jules BELLEVRAS
+ */
+int check_all_buttons(struct TDeviceCharGpIO* __Fds1, struct TDeviceCharGpIO* __Fds2){
+    int Ret1 = button_press(__Fds1, 0);
+    int Ret2 = button_press(__Fds1, 1);
+    int Ret3 = button_press(__Fds2, 0);
+    int Ret4 = button_press(__Fds2, 1);
+    if (Ret1 == 1)
     {
         return 1; 
     }
-    if (ret2 == 1)
+    if (Ret2 == 1)
     {
         return 2; 
     }
-    if (ret3 == 1)
+    if (Ret3 == 1)
     {
         return 3; 
     }
-    if (ret4 == 1)
+    if (Ret4 == 1)
     {
         return 4; 
     }
@@ -450,6 +483,14 @@ int check_all_buttons(struct TDeviceCharGpIO* gpioButton1, struct TDeviceCharGpI
     return -1; 
 }
 
+/* GstPipe
+ * Role: update GIF index based on button code.
+ * Params:
+ *  - __Gif: current GIF index.
+ *  - __Idx: button code ('1'..'4').
+ * Return: action code 1..4 when handled, -1 otherwise.
+ * Author: Jules BELLEVRAS
+ */
 int GstPipe(int __Gif, char __Idx ){
     int __Ret = -1;
     if (__Idx == '1')
@@ -475,7 +516,16 @@ int GstPipe(int __Gif, char __Idx ){
     return __Ret;
 }
 
-int GetNbFrames(struct TDeviceCharGpIO *__Fds, uint8_t __CmdSetByte[], int* nb_frame){
+/* GetNbFrames
+ * Role: set byte address, read number of frames, then restore address.
+ * Params:
+ *  - __Fds: OLED device handle.
+ *  - __CmdSetByte: command buffer to set byte address (updated in place)(start at adresse + 0x07 which is the number of frames).
+ *  - __NbFrames: output pointer to store the frame count.
+ * Return: 0x06 on success, negative error code on failure.
+ * Author: Jules BELLEVRAS
+ */
+int GetNbFrames(struct TDeviceCharGpIO *__Fds, uint8_t __CmdSetByte[], int* __NbFrames){
 
     int __RET = -1;
     const uint8_t CmdReadByte[2] = {0xFF, 0xB7};
@@ -487,13 +537,13 @@ int GetNbFrames(struct TDeviceCharGpIO *__Fds, uint8_t __CmdSetByte[], int* nb_f
         return -1;
     }
 
-    __RET = SendCmd2RetV(__Fds->m_iDescIO, CmdReadByte, &nb_frame);
+    __RET = SendCmd2RetV(__Fds->m_iDescIO, CmdReadByte, &__NbFrames);
     if (__RET < 0)
     {
         printf("error Read Byte : %2x\n\r", __RET);
         return -2;
     }
-    printf("Valeur adresse (nb frame): %i\n\n\r", nb_frame);
+    printf("Valeur adresse (nb frame): %i\n\n\r", __NbFrames);
     
     //On se remet a la bonne adresse pour la video.
     __CmdSetByte[5] = 0x00;

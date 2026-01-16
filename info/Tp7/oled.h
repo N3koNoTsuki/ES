@@ -7,8 +7,7 @@
  */
 
 #if !defined __OLED_H__
-#define      __OLED_H__
-//#define DEBUG 
+#define      __OLED_H__ 
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -67,9 +66,9 @@ int SendCmd2RetV(int __Fd, const uint8_t * __Buf, uint16_t *__Ret);
 int change_baudrate(struct TCharDevice *__Dev, struct termios* __Term, enum BaudRate __BaudRate, enum DebugLevel __DbgLvl);
 int init_liaison(struct TCharDevice *__Dev, struct termios *__Init, struct termios *__Old, size_t __lenInit);
 int init_media(int __Fd, uint16_t *__Ret);
-int config_gpio_button(struct TDeviceCharGpIO* gpioButton1, unsigned int eventFlags, enum DebugLevel debugLevel);
+int config_gpio_button(struct TDeviceCharGpIO* __Fds, unsigned int __EventFlgs, enum DebugLevel __DbgLvl);
 int button_press(struct TDeviceCharGpIO *__Fds, int __Idx);
-int check_all_buttons(struct TDeviceCharGpIO* gpioButton1, struct TDeviceCharGpIO* gpioButton2);
+int check_all_buttons(struct TDeviceCharGpIO* __Fds1, struct TDeviceCharGpIO* __Fds2);
 int GstPipe(int __Gif, char __Idx );
-int GetNbFrames(struct TDeviceCharGpIO *__Fds, uint8_t __CmdSetByte[], int* nb_frame);
+int GetNbFrames(struct TDeviceCharGpIO *__Fds, uint8_t __CmdSetByte[], int* __NbFrames);
 #endif // #if !defined __OLED_H__
