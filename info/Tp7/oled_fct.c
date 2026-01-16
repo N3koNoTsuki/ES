@@ -424,7 +424,85 @@ int button_press(struct TDeviceCharGpIO *__Fds, int __Idx){
     return __Ret;
 }
 
+int check_all_buttons(struct TDeviceCharGpIO* gpioButton1, struct TDeviceCharGpIO* gpioButton2){
+    int ret1 = button_press(gpioButton1, 0);
+    int ret2 = button_press(gpioButton1, 1);
+    int ret3 = button_press(gpioButton2, 0);
+    int ret4 = button_press(gpioButton2, 1);
 
+    if (ret1 == 1)
+    {
+        return 1; 
+    }
+    if (ret2 == 1)
+    {
+        return 2; 
+    }
+    if (ret3 == 1)
+    {
+        return 3; 
+    }
+    if (ret4 == 1)
+    {
+        return 4; 
+    }
 
+    return -1; 
+}
 
+int GstPipe(int __Gif, char __Idx ){
+    int __Ret = -1;
+    if (__Idx == '1')
+    {
+        __Gif = (__Gif + 1) % NBGIF;
+        __Ret = 1;
+    }
+    else if (__Idx == '2')
+    {
+        __Gif = (__Gif - 1) % NBGIF;
+        __Ret = 2;
+    }
+    else if (__Idx == '3')
+    {
+        __Gif = 0;
+        __Ret = 3;
+    }
+    else if (__Idx == '4')
+    {
+        __Gif = NBGIF - 1;
+        __Ret = 4;
+    }
+    return __Ret;
+}
 
+int GetNbFrames(struct TDeviceCharGpIO *__Fds, uint8_t __CmdSetByte[], int* nb_frame){
+
+    int __RET = -1;
+    const uint8_t CmdReadByte[2] = {0xFF, 0xB7};
+
+    __RET = SendCmd(__Fds->m_iDescIO, __CmdSetByte, sizeof(__CmdSetByte));
+    if (__RET != 0x06)
+    {
+        printf("error Set Byte Adresse : %2x\n\r", __RET);
+        return -1;
+    }
+
+    __RET = SendCmd2RetV(__Fds->m_iDescIO, CmdReadByte, &nb_frame);
+    if (__RET < 0)
+    {
+        printf("error Read Byte : %2x\n\r", __RET);
+        return -2;
+    }
+    printf("Valeur adresse (nb frame): %i\n\n\r", nb_frame);
+    
+    //On se remet a la bonne adresse pour la video.
+    __CmdSetByte[5] = 0x00;
+    
+    __RET = SendCmd(__Fds->m_iDescIO, __CmdSetByte, sizeof(__CmdSetByte));
+    if (__RET != 0x06)
+    {
+        printf("error Set Byte Adresse def : %2x\n\r", __RET);
+        return -3;
+    }
+    return __RET;
+}

@@ -29,6 +29,7 @@
 #define SIZE 60000
 
 #define SIZESTRADC 60
+#define NBGIF 2
 
 
 struct TCharDevice {
@@ -68,4 +69,7 @@ int init_liaison(struct TCharDevice *__Dev, struct termios *__Init, struct termi
 int init_media(int __Fd, uint16_t *__Ret);
 int config_gpio_button(struct TDeviceCharGpIO* gpioButton1, unsigned int eventFlags, enum DebugLevel debugLevel);
 int button_press(struct TDeviceCharGpIO *__Fds, int __Idx);
+int check_all_buttons(struct TDeviceCharGpIO* gpioButton1, struct TDeviceCharGpIO* gpioButton2);
+int GstPipe(int __Gif, char __Idx );
+int GetNbFrames(struct TDeviceCharGpIO *__Fds, uint8_t __CmdSetByte[], int* nb_frame);
 #endif // #if !defined __OLED_H__
