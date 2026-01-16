@@ -33,7 +33,6 @@
 #include <time.h>
 #include <fcntl.h>
 #include <poll.h>
-#include <poll.h>
 
 struct TDeviceChar;
 struct TDeviceChar {

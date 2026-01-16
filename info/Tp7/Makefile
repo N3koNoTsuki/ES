@@ -7,7 +7,7 @@ ARCH = arm
 CROSS_COMPILE = arm-none-linux-gnueabihf-
 CC = $(CROSS_COMPILE)gcc
 INSTALL = install
-CFLAGS =  -g -Wall
+CFLAGS =  -g -Wall -Wno-unused-variable -Wno-unused-parameter
 LDFLAGS = -g -Wall -lm  
 
 
@@ -52,5 +52,4 @@ depend:
 # DO NOT DELETE
 oled.o: oled.h 
 oled_fct.o: oled.h
-
 

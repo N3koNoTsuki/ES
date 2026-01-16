@@ -39,13 +39,125 @@ int main(int iArgCount, char *apstrArgValue[])
 		.m_iDescIO = -1,
 	};
 
+	// Buttons on Falling Edge (o x x o)
+	struct TDeviceCharGpIO gpioButton1 = {
+		.m_DevChar = {
+			.m_iDescIO = -1,
+			.m_strFileIO = "/dev/gpiochip2",
+		},
+	};
+
+	// Buttons on Both Edges (x o o x)
+	struct TDeviceCharGpIO gpioButton2 = {
+		.m_DevChar = {
+			.m_iDescIO = -1,
+			.m_strFileIO = "/dev/gpiochip3",
+		},
+	};
 	//---------------- Liaison serie RS-232 ----------------//
 	struct termios LiasonOled, LiasonOled_Old = {.c_iflag = 0, .c_oflag = 0, .c_cflag = 0, .c_lflag = 0};
 
 	//---------------- Reservation ----------------//
-	int iResult = 0;
-	int gif = 0;
-	sscanf(apstrArgValue[1], "%i",&gif);	
+	int iResult = -1;
+	pid_t pid;
+	int a2iFdPipe[2];
+	char buffer[SIZESTRADC] = {"\0"};
+
+	iResult = pipe(a2iFdPipe);
+	if (iResult == 0)
+	{
+		pid = fork();
+
+		switch (pid)
+		{
+		case -1:
+			perror("Echec fork()");
+			close(a2iFdPipe[0]);
+			close(a2iFdPipe[1]);
+			break;
+
+		case 0:
+			/* code du fils*/
+			//Le fils lit les boutons est renvois lequelle a etait appuye au pere
+			close(a2iFdPipe[0]);	//Ferme la lecture
+			config_gpio_button(&gpioButton1, GPIOEVENT_REQUEST_FALLING_EDGE, DEBUG_ERROR);
+			config_gpio_button(&gpioButton2, GPIOEVENT_REQUEST_BOTH_EDGES, DEBUG_ERROR);
+	
+			while (sigFlagStop != -1)
+			{
+				if (button_press(&gpioButton1, 0) == 1)
+				{
+					/* code */
+					printf("a\n\r");
+				}
+				if (button_press(&gpioButton1, 1) == 1)
+				{
+					/* code */
+					printf("b\n\r");
+				}
+				if (button_press(&gpioButton2, 0) == 1)
+				{
+					/* code */
+					printf("c\n\r");
+				}
+				if (button_press(&gpioButton2, 1) == 1)
+				{
+					/* code */
+					printf("d\n\r");
+				}			
+			}
+			kill(getppid(),SIGINT);
+			close(a2iFdPipe[1]);
+			close(gpioButton1.m_request.fd);
+			close(gpioButton1.m_DevChar.m_iDescIO);
+			close(gpioButton2.m_request.fd);
+			close(gpioButton2.m_DevChar.m_iDescIO);
+			break;
+
+		default:
+			/* code du pere*/
+			//Le pere lit le pipe est affiche le gif en fonction du bouton appuyer
+			close(a2iFdPipe[1]);	//Ferme l'ecriture
+			while (sigFlagStop != -1)
+			{
+				/* code */
+			}
+			close(a2iFdPipe[0]);
+			int status = 0;
+			pid_t w = waitpid(pid, &status, 0);
+			if (w == -1) {
+				perror("waitpid");
+			} else {
+			}
+			fprintf(stdout, "Fin du programme\n\r");
+		}
+	}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+	/*
+	
 	//---------------- Initialisation des drivers ----------------//
 	EcranOled.m_iDescIO = open(EcranOled.m_strFileIO, O_RDWR);
 	if (EcranOled.m_iDescIO < 0)
@@ -54,53 +166,14 @@ int main(int iArgCount, char *apstrArgValue[])
 		return -1;
 	}
 	//---------------- Configuration de la liaison RS-232 ----------------//
-	if (tcgetattr(EcranOled.m_iDescIO, &LiasonOled) < 0)
-	{
-		perror("tcgetattr");
-		close(EcranOled.m_iDescIO);
-		return -1;
-	}
-	memcpy(&LiasonOled_Old, &LiasonOled, sizeof(LiasonOled));
-	LiasonOled_Old = LiasonOled; // Buffer pour enregistrer les params par defauts
-	cfmakeraw(&LiasonOled);
-	LiasonOled.c_cflag |= (CLOCAL | CREAD); // ignore modem control lines and enable receiver
-	LiasonOled.c_cflag &= ~PARENB;			// no parity
-	LiasonOled.c_cflag &= ~CSTOPB;			// 1 stop bit
-	LiasonOled.c_cflag &= ~CSIZE;			// clear data bits setting
-	LiasonOled.c_cflag |= CS8;				// 8 data bits
-	LiasonOled.c_cc[VTIME] = 1;
-	LiasonOled.c_cc[VMIN] = 0;
-	iResult = cfsetspeed(&LiasonOled, B9600);
+	iResult = init_liaison(&EcranOled, &LiasonOled, &LiasonOled_Old, sizeof(LiasonOled));
 	if (iResult < 0)
 	{
-		perror("cfsetspeed");
-		close(EcranOled.m_iDescIO);
-		return -1;
-	}
-	iResult = tcsetattr(EcranOled.m_iDescIO, TCSANOW, &LiasonOled);
-	if (iResult < 0)
-	{
-		tcsetattr(EcranOled.m_iDescIO, TCSANOW, &LiasonOled_Old);
-		perror("tcsetattr");
-		close(EcranOled.m_iDescIO);
-		return -1;
-	}
-	if (fcntl(EcranOled.m_iDescIO, F_SETFL, 0))
-	{
-		printf("Error %d setting device %s flags: %s\n", errno, EcranOled.m_strFileIO, strerror(errno));
-		tcsetattr(EcranOled.m_iDescIO, TCSANOW, &LiasonOled_Old); // restore old settings
-		close(EcranOled.m_iDescIO);
-		return -1;
-	}
-	sleep(3);
-	
-	iResult = change_baudrate(EcranOled, &LiasonOled, BAUDRATE_115200, DEBUG_NONE);
-	if (iResult < 0)
-	{
+
+		printf("Erreur init_liaison : %i\n\r", iResult);
 		return -1;
 	}
 	printf("Initialisation finished\n\r");
-	
 
 	//----------------Init Media-----------------//
 	uint16_t err = 0;
@@ -117,7 +190,6 @@ int main(int iArgCount, char *apstrArgValue[])
 	uint8_t cmd_SetByteAdresse[6];
 	if (gif == 1)
 	{
-		/* code */
 		cmd_SetByteAdresse[0] = 0xFF;
 		cmd_SetByteAdresse[1] = 0xB9;
 		cmd_SetByteAdresse[2] = 0x02;
@@ -136,8 +208,6 @@ int main(int iArgCount, char *apstrArgValue[])
 		cmd_SetByteAdresse[5] = 0x07;
 		printf("GIF 2\n\r");
 	}
-
-	//
 	
 	iResult = SendCmd(EcranOled.m_iDescIO, cmd_SetByteAdresse, sizeof(cmd_SetByteAdresse));
 	if (iResult != 0x06)
@@ -146,11 +216,10 @@ int main(int iArgCount, char *apstrArgValue[])
 		goto cleanup;
 	}
 
-
 	const uint8_t CmdReadByte[2] = {0xFF, 0xB7};
 	uint16_t nb_frame;
 
-	iResult = SendCmd2RetV(EcranOled.m_iDescIO, CmdReadByte, sizeof(CmdReadByte), &nb_frame);
+	iResult = SendCmd2RetV(EcranOled.m_iDescIO, CmdReadByte, &nb_frame);
 	if (iResult < 0)
 	{
 		printf("error Read Byte : %2x\n\r", iResult);
@@ -159,7 +228,6 @@ int main(int iArgCount, char *apstrArgValue[])
 	printf("Valeur adresse (nb frame): %i\n\n\r", nb_frame);
 	
 	//On se remet a la bonne adresse pour la video.
-	
 	cmd_SetByteAdresse[5] = 0x00;
 	
 	iResult = SendCmd(EcranOled.m_iDescIO, cmd_SetByteAdresse, sizeof(cmd_SetByteAdresse));
@@ -179,7 +247,6 @@ int main(int iArgCount, char *apstrArgValue[])
 		
 		for (size_t i = 0; i <= nb_frame && sigFlagStop != -1; i++)
 		{
-			/* code */
 			cmd_DisplayVideoFrame[6] = (i >> 8) & 0xFF;
 			cmd_DisplayVideoFrame[7] = i & 0xFF;
 			printf("\033[F\033[KDisplay Frame : %i\n\r", i);
@@ -202,7 +269,7 @@ cleanup:
 	{
 		printf("Error %d clearing device %s: %s\n\r", errno, EcranOled.m_strFileIO, strerror(errno));
 	}
-	iResult = change_baudrate(EcranOled, &LiasonOled, BAUDRATE_9600, DEBUG_NONE);
+	iResult = change_baudrate(&EcranOled, &LiasonOled, BAUDRATE_9600, DEBUG_NONE);
 	if (iResult < 0)
 	{
 		return -1;
@@ -214,6 +281,8 @@ cleanup:
 		printf("Error %d closing device %s: %s\n\r", errno, EcranOled.m_strFileIO, strerror(errno));
 		return -1;
 	}
-	fprintf(stdout, "Fin du programme\n\r");
+	*/
+	
 	return (iResult);
+
 }

@@ -18,25 +18,34 @@
 #include <string.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/ioctl.h>
 #include <fcntl.h>
 #include <termios.h>
 #include <signal.h>
-#include <math.h>
-
-
-#define OLED_CMD_CIRCLE_LEN 10
-#define OLED_CMD_LINE_LEN 12
-#define OLED_CMD_CHANGE_COLOR_LEN 6
+#include <poll.h>
+#include <wait.h>
+#include <linux/gpio.h>
 
 #define SIZE 60000
 
-#ifndef M_PI
-#define M_PI 3.14159265358979323846
-#endif
+#define SIZESTRADC 60
+
 
 struct TCharDevice {
 	char 	m_strFileIO[60];
 	int		m_iDescIO;
+};
+
+struct TDeviceCharGpIO;
+struct TDeviceCharGpIO {
+	struct TCharDevice 			m_DevChar;
+	struct gpiochip_info 		m_chipinfo;
+	struct gpioline_info 		m_lineinfo;
+	struct gpiohandle_request 	m_request;
+	struct gpiohandle_data 		m_data;
+	struct gpioevent_request  	m_event_request[64];
+	struct gpioevent_data     	m_event_data[64];
+	struct pollfd 					m_pollfd[64];
 };
 
 enum BaudRate {
@@ -51,15 +60,12 @@ enum DebugLevel {
 };
 
 
-void clearcmd(uint8_t* cmd, size_t len);
 int ClearOled(int __Fd);
-int SendCmd(int __Fd, const uint8_t * __buf, size_t len);
-void build_circle_cmd(uint8_t *cmd, uint8_t opcode, uint16_t x, uint16_t y, uint16_t r, uint16_t color);
-void build_line_cmd(uint8_t *cmd, uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2, uint16_t color);
-void Build_ChangeColor_cmd(uint8_t *cmd, uint16_t __Old, uint16_t __New);
+int SendCmd(int __Fd, const uint8_t * __Buf, size_t __Len);
+int SendCmd2RetV(int __Fd, const uint8_t * __Buf, uint16_t *__Ret);
+int change_baudrate(struct TCharDevice *__Dev, struct termios* __Term, enum BaudRate __BaudRate, enum DebugLevel __DbgLvl);
+int init_liaison(struct TCharDevice *__Dev, struct termios *__Init, struct termios *__Old, size_t __lenInit);
 int init_media(int __Fd, uint16_t *__Ret);
-int SendCmd2RetV(int __Fd, const uint8_t * __buf, size_t len, uint16_t *__Ret);
-int change_baudrate(struct TCharDevice device, struct termios* TermConfig, enum BaudRate baudRate, enum DebugLevel debugLevel);
-int media_dump_lines(int fd, int lines);
-
+int config_gpio_button(struct TDeviceCharGpIO* gpioButton1, unsigned int eventFlags, enum DebugLevel debugLevel);
+int button_press(struct TDeviceCharGpIO *__Fds, int __Idx);
 #endif // #if !defined __OLED_H__
