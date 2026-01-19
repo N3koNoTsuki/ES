@@ -1,12 +1,38 @@
 #include "test.h"
 
-#define BYTES_PER_LINE 16
+
+
+volatile sig_atomic_t sigFlagStop = 0;
+sig_atomic_t sigUser1 = 0;
+
+void gestionnaire_signal(int iNumSignal);
+
+void gestionnaire_signal(int iNumSignal)
+{
+	if (iNumSignal == SIGINT || iNumSignal == SIGTERM)
+	{
+		sigFlagStop = -1;
+	}
+	if (iNumSignal == SIGUSR1)
+	{
+		/* code */
+		sigUser1 = 1;
+	}
+}
+
 
 int main(void)
 {
+    signal(SIGINT, gestionnaire_signal);
+	signal(SIGTERM, gestionnaire_signal);
+    signal(SIGALRM, gestionnaire_signal);
+	signal(SIGUSR1, gestionnaire_signal);
+
+
     FILE *file;
     char filename[256];
-    unsigned char buffer[BYTES_PER_LINE];
+    char raw_filename[512];
+    unsigned char buffer[BYTES_PER_SECTOR];
     size_t offset = 0;
     size_t bytes_read;
 
@@ -23,11 +49,17 @@ int main(void)
 
     int iResult = -1;
     uint16_t err = 0;
-    uint16_t frame = 123;
-    uint8_t cmd_SetByteAdresse[NBGIF][6] = {{0xFF, 0xB9, 0x02, 0x00, 0x00, 0x00},  // GIF 1
-                                            {0xFF, 0xB9, 0x02, 0x04, 0x02, 0x00},  // GIF 2
-                                            {0xFF, 0xB9, 0x02, 0x10, 0x04, 0x00},
-                                            {0xFF, 0xB9, 0x02, 0x16, 0x82, 0x00}}; // GIF 3
+    uint16_t frame;
+    uint8_t NoGif = 0;
+    const uint8_t cmd_FlushMedia[2] = {0xFF, 0xB2};
+    uint8_t cmd_DisplayVideoFrame[8] = {0xFF, 0xBA, 0x00, 0x00, 0x00, 0x0, 0x00, 0x00};
+    uint8_t cmd_SetByteAdresse[NBGIF][6] = {{0xFF, 0xB9, 0x02, 0x00, 0x00, 0x00},   // GIF 1
+                                            {0xFF, 0xB9, 0x02, 0x04, 0x02, 0x00},   // GIF 2
+                                            {0xFF, 0xB9, 0x02, 0x10, 0x04, 0x00},   // GIF 3
+                                            {0xFF, 0xB9, 0x02, 0x16, 0x82, 0x00},   // GIF 4 
+                                            {0xFF, 0xB9, 0x02, 0x1B, 0x04, 0x00},   // GIF 5
+                                            {0xFF, 0xB9, 0x02, 0x20, 0x06, 0x00}    // GIF 6
+                                            }; 
     //---------------- Initialisation des drivers ----------------//
     EcranOled.m_iDescIO = open(EcranOled.m_strFileIO, O_RDWR);
     if (EcranOled.m_iDescIO < 0)
@@ -57,84 +89,133 @@ int main(void)
     }
     printf("Initialisation media ok\n\r");
 
-    iResult = SendCmd(EcranOled.m_iDescIO, cmd_SetByteAdresse[3], 6);
+
+    iResult = SendCmd(EcranOled.m_iDescIO, cmd_SetByteAdresse[NBGIF - 1], 6);
     if (iResult != 0x06)
     {
         printf("error Set Byte Adresse : %2x\n\r", iResult);
-        return -1;
-    }
-
-    iResult = GetNbFrames(&EcranOled, cmd_SetByteAdresse[3], &frame);
-    if (iResult < 0)
-    {
-        printf("error Get Nb Frames : %2x\n\r", iResult);
         goto cleanup;
     }
-    printf("Valeur adresse (nb frame): %u\n\r", frame);
-
-
-
+    
     printf("Entrez le nom du fichier a lire : ");
     if (scanf("%255s", filename) != 1)
     {
         fprintf(stderr, "Erreur : nom de fichier invalide.\n");
-        return 1;
+        return -1;
     }
 
-    file = fopen(filename, "rb");
-    if (file == NULL)
+    if (filename[0] == 'c')
     {
-        perror("Erreur lors de l'ouverture du fichier");
-        return 1;
+        /* code */
+        NoGif = 1;
     }
-
-    while ((bytes_read = fread(buffer, 1, sizeof(buffer), file)) > 0)
+    
+    if (NoGif == 0)
     {
-        size_t i;
-
-        printf("%08zx: ", offset);
-
-        for (i = 0; i < bytes_read; i++)
+        snprintf(raw_filename, sizeof(raw_filename), "%s.raw", filename);
+    
+        if (build_raw_with_header(filename, raw_filename) != 0)
         {
-            printf("%02x ", buffer[i]);
-            if (i == 7)
+            fprintf(stderr, "Erreur creation fichier raw.\n");
+            return 1;
+        }
+        strncpy(filename, raw_filename, sizeof(filename) - 1);
+        filename[sizeof(filename) - 1] = '\0';
+    
+    
+    
+        file = fopen(filename, "rb");
+        if (file == NULL)
+        {
+            perror("Erreur lors de l'ouverture du fichier");
+            return 1;
+        }
+        {
+            struct stat st;
+            size_t total_size = 0;
+    
+            if (fstat(fileno(file), &st) == 0 && st.st_size > 0)
             {
-                printf(" ");
+                total_size = (size_t)st.st_size;
+            }
+    
+            while ((bytes_read = fread(buffer, 1, sizeof(buffer), file)) > 0 && sigFlagStop != -1)
+            {
+                size_t line_offset = 0;
+    
+                while (line_offset < bytes_read && sigFlagStop != -1)
+                {
+                    size_t i;
+                    size_t line_len = bytes_read - line_offset;
+    
+                    if (line_len > BYTES_PER_LINE)
+                    {
+                        line_len = BYTES_PER_LINE;
+                    }
+    
+                    i = 0;
+                    while (i + 1 < line_len && sigFlagStop != -1)
+                    {
+                        Write_Word_media(&EcranOled,
+                                         buffer[line_offset + i],
+                                         buffer[line_offset + i + 1]);
+                        i += 2;
+                    }
+                    if (i < line_len)
+                    {
+                        Write_Word_media(&EcranOled,
+                                         buffer[line_offset + i],
+                                         0x00);
+                    }
+    
+                    line_offset += line_len;
+                }
+    
+                offset += bytes_read;
+                print_progress(offset, total_size);
             }
         }
-        for (; i < BYTES_PER_LINE; i++)
-        {
-            printf("   ");
-            if (i == 7)
-            {
-                printf(" ");
-            }
-        }
-        printf("\n");
 
-        i = 0;
-        while (i + 1 < bytes_read)
-        {
-            Write_Word_media(&EcranOled, buffer[i], buffer[i + 1]);
-            i += 2;
-        }
-        if (i < bytes_read)
-        {
-            Write_Word_media(&EcranOled, buffer[i], 0x00);
-        }
 
-        break;
+        iResult = SendCmd2RetV(EcranOled.m_iDescIO, cmd_FlushMedia, sizeof(cmd_FlushMedia), &err);
+        if (iResult != 0)
+        {
+            /* code */
+            printf("Erreur flush Media 0x%2X", err);
+            goto cleanup;
+        }
+        
     }
-
-
-    iResult = GetNbFrames(&EcranOled, cmd_SetByteAdresse[3], &frame);
+    
+    if (sigFlagStop == -1)
+    {
+        /* code */
+        goto cleanup;
+    }
+    
+    
+    iResult = GetNbFrames(&EcranOled, cmd_SetByteAdresse[NBGIF - 1], &frame);
     if (iResult < 0)
     {
         printf("error Get Nb Frames : %2x\n\r", iResult);
         goto cleanup;
     }
-    printf("Valeur adresse (nb frame) post ecriture: %u\n\r", frame);
+    printf("\nValeur adresse (nb frame): %u\n\n\r", frame);
 
+ 
+    for (size_t i = 0; i <= frame && sigFlagStop != -1 && sigUser1 != 1; i++)
+    {
+        cmd_DisplayVideoFrame[6] = (i >> 8) & 0xFF;
+        cmd_DisplayVideoFrame[7] = i & 0xFF;
+        printf("\033[F\033[KDisplay Frame : %i\n\r", i);
+        iResult = SendCmd(EcranOled.m_iDescIO, cmd_DisplayVideoFrame, sizeof(cmd_DisplayVideoFrame));
+        if (iResult != 0x06)
+        {
+            printf("error Display Video Frame : %2x\n\r", iResult);
+            goto cleanup;
+        }
+        usleep(30000);
+    }
 
 
     if (ferror(file))
@@ -164,6 +245,25 @@ cleanup:
     }
     printf("Ecran closed\n\r");
     fprintf(stdout, "Fin du programme\n\r");
+
+
+    if (sigFlagStop != -1)
+    {
+        /* code */
+        char __Cmd[1024];
+        int __Ret;
+
+        snprintf(__Cmd, sizeof(__Cmd),
+                    "./oled");
+
+        __Ret = system(__Cmd);
+        if (__Ret != 0)
+        {
+            fprintf(stderr, "ffmpeg: conversion GIF->RGB565BE echouee.\n");
+            return -1;
+        }
+    }
+    
 
     fclose(file);
     return 0;

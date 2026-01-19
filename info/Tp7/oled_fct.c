@@ -102,7 +102,6 @@ int SendCmd2RetV(int __Fd, const uint8_t * __Buf, size_t __Len, uint16_t *__Ret)
     if (write(__Fd, __Buf, __Len) != (ssize_t)__Len) {
         return -1;
     }
-    usleep(500000);
     uint8_t ack = 0;
     if (read_exact(__Fd, &ack, 1) != 0) {
         return -2;

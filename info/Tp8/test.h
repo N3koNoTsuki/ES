@@ -20,8 +20,23 @@
 #define SIZE 60000
 
 #define SIZESTRADC 60
-#define NBGIF 4
+#define NBGIF 6
+#define BYTES_PER_SECTOR 512
+#define BYTES_PER_LINE 16
+#define BYTES_PER_SECTOR 512
+#define BYTES_PER_LINE 16
+#define OLED_WIDTH 128
+#define OLED_HEIGHT 128
+#define OLED_BPP 16
+#define OLED_DELAY_DEFAULT 0x1E
 
+
+struct GifInfo {
+    uint16_t width;
+    uint16_t height;
+    uint16_t frames;
+    uint8_t delay;
+};
 
 struct TCharDevice {
 	char 	m_strFileIO[60];
@@ -63,5 +78,8 @@ int button_press(struct TDeviceCharGpIO *__Fds, int __Idx);
 int check_all_buttons(struct TDeviceCharGpIO* __Fds1, struct TDeviceCharGpIO* __Fds2);
 int GstPipe(int *__Gif, char __Idx );
 int GetNbFrames(struct TCharDevice *__Fds, uint8_t __CmdSetByte[], uint16_t* __NbFrames);
+int Write_Byte_media(struct TCharDevice *__Fds, uint8_t __Lsb);
 int Write_Word_media(struct TCharDevice *__Fds, uint8_t __Msb, uint8_t __Lsb);
+int build_raw_with_header(const char *__GifPath, const char *__RawPath);
+void print_progress(size_t __Written, size_t __Total);
 #endif // #if !defined __TEST_H__

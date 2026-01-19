@@ -11,19 +11,19 @@
  */
 static int read_exact(int __Fd, void *__Buf, size_t __N)
 {
-    uint8_t *p = (uint8_t *)__Buf;
-    size_t got = 0;
+    uint8_t *__Ptr = (uint8_t *)__Buf;
+    size_t __Got = 0;
 
-    while (got < __N) {
-        ssize_t r = read(__Fd, p + got, __N - got);
-        if (r < 0) {
+    while (__Got < __N) {
+        ssize_t __Read = read(__Fd, __Ptr + __Got, __N - __Got);
+        if (__Read < 0) {
             if (errno == EINTR) continue;
             return -1;
         }
-        if (r == 0) {
+        if (__Read == 0) {
             return -2; 
         }
-        got += (size_t)r;
+        __Got += (size_t)__Read;
     }
     return 0;
 }
@@ -36,19 +36,19 @@ static int read_exact(int __Fd, void *__Buf, size_t __N)
  * Author: Jules BELLEVRAS
  */
 int ClearOled(int __Fd){
-    const uint8_t cmd[2] = {0xFF, 0xD7};
-    uint8_t RetVal = 0;
+    const uint8_t __Cmd[2] = {0xFF, 0xD7};
+    uint8_t __RetVal = 0;
 
-	if (write(__Fd, cmd, sizeof(cmd)) < 0)
+	if (write(__Fd, __Cmd, sizeof(__Cmd)) < 0)
 	{
 		return -1;
 	}
-	if (read(__Fd, &RetVal, sizeof(RetVal)) < 0)
+	if (read(__Fd, &__RetVal, sizeof(__RetVal)) < 0)
 	{
 		return -2;
 	}
 
-    return RetVal;
+    return __RetVal;
 }
 
 /* SendCmd
@@ -62,7 +62,7 @@ int ClearOled(int __Fd){
  */
 int SendCmd(int __Fd, const uint8_t * __Buf, size_t __Len){
 
-    uint8_t RetVal = 0;
+    uint8_t __RetVal = 0;
 
     tcflush(__Fd, TCIFLUSH);
     #ifdef DEBUG
@@ -75,7 +75,7 @@ int SendCmd(int __Fd, const uint8_t * __Buf, size_t __Len){
 		#endif
 		return -1; 
 	}
-	if (read_exact(__Fd, &RetVal, sizeof(RetVal)) < 0)
+	if (read_exact(__Fd, &__RetVal, sizeof(__RetVal)) < 0)
 	{
 		#ifdef DEBUG
 		perror("read ");
@@ -83,7 +83,7 @@ int SendCmd(int __Fd, const uint8_t * __Buf, size_t __Len){
 		return -2; 
 	}
 
-	return RetVal;
+	return __RetVal;
 }
 
 /* SendCmd2RetV
@@ -102,25 +102,24 @@ int SendCmd2RetV(int __Fd, const uint8_t * __Buf, size_t __Len, uint16_t *__Ret)
     if (write(__Fd, __Buf, __Len) != (ssize_t)__Len) {
         return -1;
     }
-    usleep(500000);
-    uint8_t ack = 0;
-    if (read_exact(__Fd, &ack, 1) != 0) {
+    uint8_t __Ack = 0;
+    if (read_exact(__Fd, &__Ack, 1) != 0) {
         return -2;
     }
 
-    uint8_t b[2] = {0, 0};
-    if (read_exact(__Fd, b, 2) != 0) {
+    uint8_t __BufRet[2] = {0, 0};
+    if (read_exact(__Fd, __BufRet, 2) != 0) {
         return -3;
     }
 
-    uint16_t value = (uint16_t)((b[0] << 8) | b[1]); 
-    *__Ret = value;
+    uint16_t __Value = (uint16_t)((__BufRet[0] << 8) | __BufRet[1]); 
+    *__Ret = __Value;
 
-    if (ack != 0x06) {   
-		printf("%02X\n\r", ack);     
+    if (__Ack != 0x06) {   
+		printf("%02X\n\r", __Ack);     
         return -4;
     }
-    if (value == 0) {           
+    if (__Value == 0) {           
         return -5;
     }
 
@@ -139,23 +138,23 @@ int SendCmd2RetV(int __Fd, const uint8_t * __Buf, size_t __Len, uint16_t *__Ret)
  * Modified: Jules BELLEVRAS
  */
 int change_baudrate(struct TCharDevice *__Dev, struct termios* __Term, enum BaudRate __BaudRate, enum DebugLevel __DbgLvl){
-    int iResult = 0;
-    int BaudRateTermios = 0;
-    u_int8_t ack = 0;
-    u_int8_t BaudRateCmd[4] = {0x00,0x0B,0x00,0x00};
+    int __Result = 0;
+    int __BaudRateTermios = 0;
+    u_int8_t __Ack = 0;
+    u_int8_t __BaudRateCmd[4] = {0x00,0x0B,0x00,0x00};
 
     // Set baudrate command bytes
     switch (__BaudRate)
     {
     case BAUDRATE_115200:
-        BaudRateCmd[2] = 0x00;
-        BaudRateCmd[3] = 0x19;
-        BaudRateTermios = B115200;
+        __BaudRateCmd[2] = 0x00;
+        __BaudRateCmd[3] = 0x19;
+        __BaudRateTermios = B115200;
         break;
     case BAUDRATE_9600:
-        BaudRateCmd[2] = 0x01;
-        BaudRateCmd[3] = 0x38;
-        BaudRateTermios = B9600;
+        __BaudRateCmd[2] = 0x01;
+        __BaudRateCmd[3] = 0x38;
+        __BaudRateTermios = B9600;
         break;
     default:
         if (__DbgLvl >= DEBUG_ERROR)
@@ -169,8 +168,8 @@ int change_baudrate(struct TCharDevice *__Dev, struct termios* __Term, enum Baud
     // Send baudrate command to device
     tcflush(__Dev->m_iDescIO, TCIOFLUSH);
 
-    iResult = write(__Dev->m_iDescIO, BaudRateCmd, sizeof(BaudRateCmd));
-    if (iResult == -1 && __DbgLvl >= DEBUG_ERROR)
+    __Result = write(__Dev->m_iDescIO, __BaudRateCmd, sizeof(__BaudRateCmd));
+    if (__Result == -1 && __DbgLvl >= DEBUG_ERROR)
     {
         printf("Error %d writing to device %s: %s\n", errno, __Dev->m_strFileIO, strerror(errno));
     }
@@ -182,7 +181,7 @@ int change_baudrate(struct TCharDevice *__Dev, struct termios* __Term, enum Baud
     
     
     // Change terminal speed
-   if(cfsetspeed(__Term, BaudRateTermios) == -1)
+   if(cfsetspeed(__Term, __BaudRateTermios) == -1)
    {
         if (__DbgLvl >= DEBUG_ERROR)
         {printf("Error %d setting device %s speed: %s\n", errno, __Dev->m_strFileIO, strerror(errno));}
@@ -207,17 +206,17 @@ int change_baudrate(struct TCharDevice *__Dev, struct termios* __Term, enum Baud
 
 
    // Read ack from device
-   iResult = read(__Dev->m_iDescIO, &ack, 1);
-   if (iResult == -1 && __DbgLvl >= DEBUG_ERROR)
+   __Result = read(__Dev->m_iDescIO, &__Ack, 1);
+   if (__Result == -1 && __DbgLvl >= DEBUG_ERROR)
     {
        printf("Error %d reading from device %s: %s\n", errno, __Dev->m_strFileIO, strerror(errno));
     }
-   else if (ack == 0x06 && __DbgLvl >= DEBUG_INFO)
+   else if (__Ack == 0x06 && __DbgLvl >= DEBUG_INFO)
     {
             printf("Ack received from device %s\n", __Dev->m_strFileIO);
    }else if (__DbgLvl >= DEBUG_INFO)
    {
-            printf("Bad ack received from device %s: 0x%02X\n", __Dev->m_strFileIO, ack);
+            printf("Bad ack received from device %s: 0x%02X\n", __Dev->m_strFileIO, __Ack);
    }
 
 
@@ -238,7 +237,7 @@ int change_baudrate(struct TCharDevice *__Dev, struct termios* __Term, enum Baud
 
    }
 
-   if (cfgetospeed(__Term) == BaudRateTermios && cfgetispeed(__Term) == BaudRateTermios)
+   if (cfgetospeed(__Term) == __BaudRateTermios && cfgetispeed(__Term) == __BaudRateTermios)
    {
         if (__DbgLvl >= DEBUG_INFO)
         {
@@ -246,7 +245,7 @@ int change_baudrate(struct TCharDevice *__Dev, struct termios* __Term, enum Baud
         }
    }
 
-    return iResult;
+    return __Result;
 }
 
 /* init_liaison
@@ -320,32 +319,32 @@ int init_liaison(struct TCharDevice *__Dev, struct termios *__Init, struct termi
  */
 int init_media(int __Fd, uint16_t *__Ret)
 {
-    const uint8_t cmd[2] = {0xFF, 0xB1}; 
+    const uint8_t __Cmd[2] = {0xFF, 0xB1}; 
 
     tcflush(__Fd, TCIFLUSH);
 
-    if (write(__Fd, cmd, sizeof(cmd)) != (ssize_t)sizeof(cmd)) {
+    if (write(__Fd, __Cmd, sizeof(__Cmd)) != (ssize_t)sizeof(__Cmd)) {
         return -1;
     }
     usleep(500000);
-    uint8_t ack = 0;
-    if (read_exact(__Fd, &ack, 1) != 0) {
+    uint8_t __Ack = 0;
+    if (read_exact(__Fd, &__Ack, 1) != 0) {
         return -2;
     }
 
-    uint8_t b[2] = {0, 0};
-    if (read_exact(__Fd, b, 2) != 0) {
+    uint8_t __BufRet[2] = {0, 0};
+    if (read_exact(__Fd, __BufRet, 2) != 0) {
         return -3;
     }
 
-    uint16_t value = (uint16_t)((b[0] << 8) | b[1]); 
-    *__Ret = value;
+    uint16_t __Value = (uint16_t)((__BufRet[0] << 8) | __BufRet[1]); 
+    *__Ret = __Value;
 
-    if (ack != 0x06) {   
-		printf("%02X\n\r", ack);     
+    if (__Ack != 0x06) {   
+		printf("%02X\n\r", __Ack);     
         return -4;
     }
-    if (value == 0) {           
+    if (__Value == 0) {           
         return -5;
     }
 
@@ -365,7 +364,7 @@ int init_media(int __Fd, uint16_t *__Ret)
  */
 int config_gpio_button(struct TDeviceCharGpIO* __Fds, unsigned int __EventFlgs, enum DebugLevel __DbgLvl){
 
-    int iResult = 0;
+    int __Result = 0;
     __Fds->m_DevChar.m_iDescIO = open(__Fds->m_DevChar.m_strFileIO, O_RDWR);
     if (__Fds->m_DevChar.m_iDescIO < 0)
     {
@@ -374,8 +373,8 @@ int config_gpio_button(struct TDeviceCharGpIO* __Fds, unsigned int __EventFlgs, 
     }
     ////////////////	Récuperation Infos GPIO Bouttons côtés	//////////////
     memset(&__Fds->m_chipinfo,0, sizeof(__Fds->m_chipinfo));
-    iResult = ioctl(__Fds->m_DevChar.m_iDescIO, GPIO_GET_CHIPINFO_IOCTL,&__Fds->m_chipinfo);
-    if (iResult < 0 && __DbgLvl >= DEBUG_ERROR)
+    __Result = ioctl(__Fds->m_DevChar.m_iDescIO, GPIO_GET_CHIPINFO_IOCTL,&__Fds->m_chipinfo);
+    if (__Result < 0 && __DbgLvl >= DEBUG_ERROR)
     {
         printf( "Erreur recuperation info Boutton D/G : ");
         printf("\n");
@@ -393,8 +392,8 @@ int config_gpio_button(struct TDeviceCharGpIO* __Fds, unsigned int __EventFlgs, 
     __Fds->m_event_request[0].handleflags = GPIOHANDLE_REQUEST_INPUT;
     __Fds->m_event_request[0].eventflags = __EventFlgs;
 
-    iResult = ioctl(__Fds->m_DevChar.m_iDescIO, GPIO_GET_LINEEVENT_IOCTL,&__Fds->m_event_request[0]);
-    if (iResult < 0 && __DbgLvl >= DEBUG_ERROR)
+    __Result = ioctl(__Fds->m_DevChar.m_iDescIO, GPIO_GET_LINEEVENT_IOCTL,&__Fds->m_event_request[0]);
+    if (__Result < 0 && __DbgLvl >= DEBUG_ERROR)
     {
         perror("erreur configuration comportement Boutton Droit : ");
         printf("\n");
@@ -405,8 +404,8 @@ int config_gpio_button(struct TDeviceCharGpIO* __Fds, unsigned int __EventFlgs, 
     __Fds->m_event_request[1].handleflags = GPIOHANDLE_REQUEST_INPUT;
     __Fds->m_event_request[1].eventflags = __EventFlgs;
 
-    iResult = ioctl(__Fds->m_DevChar.m_iDescIO, GPIO_GET_LINEEVENT_IOCTL,&__Fds->m_event_request[1]);
-    if (iResult < 0 && __DbgLvl >= DEBUG_ERROR)
+    __Result = ioctl(__Fds->m_DevChar.m_iDescIO, GPIO_GET_LINEEVENT_IOCTL,&__Fds->m_event_request[1]);
+    if (__Result < 0 && __DbgLvl >= DEBUG_ERROR)
     {
         perror("erreur configuration comportement Boutton Gauche: ");
         printf("\n");
@@ -418,7 +417,7 @@ int config_gpio_button(struct TDeviceCharGpIO* __Fds, unsigned int __EventFlgs, 
     __Fds->m_pollfd[1].fd = __Fds->m_event_request[1].fd;
     __Fds->m_pollfd[1].events = POLLIN;
 
-    return iResult;
+    return __Result;
 }
 
 /* button_press
@@ -458,23 +457,23 @@ int button_press(struct TDeviceCharGpIO *__Fds, int __Idx){
  * Author: Jules BELLEVRAS
  */
 int check_all_buttons(struct TDeviceCharGpIO* __Fds1, struct TDeviceCharGpIO* __Fds2){
-    int Ret1 = button_press(__Fds1, 0);
-    int Ret2 = button_press(__Fds1, 1);
-    int Ret3 = button_press(__Fds2, 0);
-    int Ret4 = button_press(__Fds2, 1);
-    if (Ret1 == 1)
+    int __Ret1 = button_press(__Fds1, 0);
+    int __Ret2 = button_press(__Fds1, 1);
+    int __Ret3 = button_press(__Fds2, 0);
+    int __Ret4 = button_press(__Fds2, 1);
+    if (__Ret1 == 1)
     {
         return 1; 
     }
-    if (Ret2 == 1)
+    if (__Ret2 == 1)
     {
         return 2; 
     }
-    if (Ret3 == 1)
+    if (__Ret3 == 1)
     {
         return 3; 
     }
-    if (Ret4 == 1)
+    if (__Ret4 == 1)
     {
         return 4; 
     }
@@ -532,9 +531,9 @@ int GstPipe(int *__Gif, char __Idx ){
 int GetNbFrames(struct TCharDevice *__Fds, uint8_t __CmdSetByte[], uint16_t* __NbFrames){
 
     int __RET = -1;
-    const uint8_t CmdReadByte[2] = {0xFF, 0xB7};
+    const uint8_t __CmdReadByte[2] = {0xFF, 0xB7};
 
-    //On se place au byte contenant le nombre de frames
+    //On se place au byte contenant le nombre de frames (MSB)
     __CmdSetByte[5] = 0x07;
 
     __RET = SendCmd(__Fds->m_iDescIO, __CmdSetByte, 6);
@@ -544,7 +543,7 @@ int GetNbFrames(struct TCharDevice *__Fds, uint8_t __CmdSetByte[], uint16_t* __N
         return -1;
     }
 
-    __RET = SendCmd2RetV(__Fds->m_iDescIO, CmdReadByte, sizeof(CmdReadByte), __NbFrames);
+    __RET = SendCmd2RetV(__Fds->m_iDescIO, __CmdReadByte, sizeof(__CmdReadByte), __NbFrames);
     if (__RET < 0)
     {
         printf("error Read Byte : %2x\n\r", __RET);
@@ -564,10 +563,319 @@ int GetNbFrames(struct TCharDevice *__Fds, uint8_t __CmdSetByte[], uint16_t* __N
     return __RET;
 }
 
+/* Write_Byte_media
+ * Role: write a single data byte to the media using the write-word command.
+ * Params:
+ *  - __Fds: OLED device handle.
+ *  - __Lsb: byte to write (LSB in 16-bit payload).
+ * Return: device status or negative error code.
+ */
+int Write_Byte_media(struct TCharDevice *__Fds, uint8_t __Lsb){
+
+    uint8_t __Cmd[4] = {0xFF, 0xB4, 0x00, __Lsb};
+    uint16_t __Ret = 0;
+    SendCmd2RetV(__Fds->m_iDescIO, __Cmd, sizeof(__Cmd), &__Ret);
+    return __Ret;
+}
+
+/* Write_Word_media
+ * Role: write a 16-bit word to the media.
+ * Params:
+ *  - __Fds: OLED device handle.
+ *  - __Msb: most significant byte.
+ *  - __Lsb: least significant byte.
+ * Return: device status or negative error code.
+ */
 int Write_Word_media(struct TCharDevice *__Fds, uint8_t __Msb, uint8_t __Lsb){
 
-    uint8_t Cmd[4] = {0xFF, 0xB4, __Msb, __Lsb};
-    uint16_t Ret = 0;
-    SendCmd2RetV(__Fds->m_iDescIO, Cmd, sizeof(Cmd), &Ret);
-    return Ret;
+    uint8_t __Cmd[4] = {0xFF, 0xB4, __Msb, __Lsb};
+    uint16_t __Ret = 0;
+    SendCmd2RetV(__Fds->m_iDescIO, __Cmd, sizeof(__Cmd), &__Ret);
+    return __Ret;
+}
+
+/* print_progress
+ * Role: display a simple progress bar for a byte transfer.
+ * Params:
+ *  - __Written: number of bytes written so far.
+ *  - __Total: total number of bytes to write.
+ * Return: none.
+ */
+void print_progress(size_t __Written, size_t __Total)
+{
+    const int __BarWidth = 30;
+    int __Filled = 0;
+    int __Percent = 0;
+
+    if (__Total > 0)
+    {
+        __Percent = (int)((__Written * 100) / __Total);
+        __Filled = (int)((__Written * __BarWidth) / __Total);
+        if (__Filled > __BarWidth)
+        {
+            __Filled = __BarWidth;
+        }
+    }
+
+    printf("\r[");
+    for (int __Idx = 0; __Idx < __BarWidth; __Idx++)
+    {
+        printf(__Idx < __Filled ? "#" : "-");
+    }
+    printf("] %3d%%", __Percent);
+    fflush(stdout);
+}
+
+/* write_oled_header
+ * Role: write an 8-byte OLED header to a file.
+ * Params:
+ *  - __Out: file stream to write into.
+ *  - __Width: image width in pixels.
+ *  - __Height: image height in pixels.
+ *  - __Bpp: bits per pixel.
+ *  - __Delay: frame delay (centiseconds).
+ *  - __Frames: number of frames.
+ * Return: 0 on success, -1 on write error.
+ */
+static int write_oled_header(FILE *__Out, uint16_t __Width, uint16_t __Height, uint8_t __Bpp, uint8_t __Delay, uint16_t __Frames)
+{
+    uint8_t __Header[8];
+
+    __Header[0] = (uint8_t)((__Width >> 8) & 0xFF);
+    __Header[1] = (uint8_t)(__Width & 0xFF);
+    __Header[2] = (uint8_t)((__Height >> 8) & 0xFF);
+    __Header[3] = (uint8_t)(__Height & 0xFF);
+    __Header[4] = __Bpp;
+    __Header[5] = __Delay;
+    __Header[6] = (uint8_t)((__Frames >> 8) & 0xFF);
+    __Header[7] = (uint8_t)(__Frames & 0xFF);
+
+    return (fwrite(__Header, 1, sizeof(__Header), __Out) == sizeof(__Header)) ? 0 : -1;
+}
+
+/* copy_file
+ * Role: copy all bytes from input stream to output stream.
+ * Params:
+ *  - __In: input file stream.
+ *  - __Out: output file stream.
+ * Return: 0 on success, -1 on read/write error.
+ */
+static int copy_file(FILE *__In, FILE *__Out)
+{
+    uint8_t __Buf[4096];
+    size_t __Read;
+
+    while ((__Read = fread(__Buf, 1, sizeof(__Buf), __In)) > 0)
+    {
+        if (fwrite(__Buf, 1, __Read, __Out) != __Read)
+        {
+            return -1;
+        }
+    }
+
+    return ferror(__In) ? -1 : 0;
+}
+
+/* parse_gif_info
+ * Role: extract width/height/frame count and a delay from a GIF via ffprobe.
+ * Params:
+ *  - __GifPath: path to the GIF file.
+ *  - __Info: output struct to populate.
+ * Return: 0 on success, -1 on error.
+ */
+static int parse_gif_info(const char *__GifPath, struct GifInfo *__Info)
+{
+    char __Cmd[1024];
+    char __Line[256];
+    FILE *__Pipe = NULL;
+    double __FrameDuration = 0.0;
+    int __GotDuration = 0;
+
+    __Info->width = 0;
+    __Info->height = 0;
+    __Info->frames = 0;
+    __Info->delay = OLED_DELAY_DEFAULT;
+
+    snprintf(__Cmd, sizeof(__Cmd),
+             "ffprobe -v error -select_streams v:0 "
+             "-show_entries stream=width,height,nb_frames "
+             "-show_entries frame=pkt_duration_time "
+             "-of default=noprint_wrappers=1 '%s'",
+             __GifPath);
+
+    __Pipe = popen(__Cmd, "r");
+    if (__Pipe == NULL)
+    {
+        perror("ffprobe");
+        return -1;
+    }
+
+    while (fgets(__Line, sizeof(__Line), __Pipe) != NULL)
+    {
+        if (sscanf(__Line, "width=%hu", &__Info->width) == 1)
+        {
+            continue;
+        }
+        if (sscanf(__Line, "height=%hu", &__Info->height) == 1)
+        {
+            continue;
+        }
+        if (sscanf(__Line, "nb_frames=%hu", &__Info->frames) == 1)
+        {
+            continue;
+        }
+        if (!__GotDuration && sscanf(__Line, "pkt_duration_time=%lf", &__FrameDuration) == 1)
+        {
+            __GotDuration = 1;
+        }
+    }
+
+    pclose(__Pipe);
+
+    if (__Info->frames == 0)
+    {
+        fprintf(stderr, "ffprobe: nb_frames introuvable.\n");
+        return -1;
+    }
+    if (__Info->width == 0 || __Info->height == 0)
+    {
+        fprintf(stderr, "ffprobe: width/height introuvable.\n");
+        return -1;
+    }
+    if (__GotDuration && __FrameDuration > 0.0)
+    {
+        double __DelayCs = __FrameDuration * 100.0;
+        if (__DelayCs < 1.0)
+        {
+            __DelayCs = 1.0;
+        }
+        if (__DelayCs > 255.0)
+        {
+            __DelayCs = 255.0;
+        }
+        __Info->delay = (uint8_t)(__DelayCs + 0.5);
+    }
+
+    return 0;
+}
+
+/* convert_gif_to_rgb565be
+ * Role: convert a GIF to raw RGB565BE using ffmpeg.
+ * Params:
+ *  - __GifPath: input GIF path.
+ *  - __RgbPath: output raw file path.
+ * Return: 0 on success, -1 on error.
+ */
+static int convert_gif_to_rgb565be(const char *__GifPath, const char *__RgbPath)
+{
+    char __Cmd[1024];
+    int __Ret;
+
+    snprintf(__Cmd, sizeof(__Cmd),
+             "ffmpeg -y -i '%s' -vf scale=128:128:flags=neighbor "
+             "-pix_fmt rgb565be -f rawvideo '%s' >/dev/null 2>&1",
+             __GifPath, __RgbPath);
+
+    __Ret = system(__Cmd);
+    if (__Ret != 0)
+    {
+        fprintf(stderr, "ffmpeg: conversion GIF->RGB565BE echouee.\n");
+        return -1;
+    }
+
+    return 0;
+}
+
+/* build_raw_with_header
+ * Role: build a final raw file with OLED header followed by RGB565BE payload.
+ * Params:
+ *  - __GifPath: input GIF path.
+ *  - __RawPath: output raw file path (vf.raw).
+ * Return: 0 on success, -1 on error.
+ */
+int build_raw_with_header(const char *__GifPath, const char *__RawPath)
+{
+    struct GifInfo __Info;
+    FILE *__Header = NULL;
+    FILE *__In = NULL;
+    FILE *__Out = NULL;
+    int __Ret = -1;
+    const char *__HeaderPath = "header.bin";
+    const char *__RgbPath = "convert.raw";
+
+    if (parse_gif_info(__GifPath, &__Info) != 0)
+    {
+        return -1;
+    }
+
+    if (convert_gif_to_rgb565be(__GifPath, __RgbPath) != 0)
+    {
+        return -1;
+    }
+
+    __Header = fopen(__HeaderPath, "wb");
+    if (__Header == NULL)
+    {
+        perror("Erreur ouverture header.bin");
+        return -1;
+    }
+
+    if (write_oled_header(__Header, OLED_WIDTH, OLED_HEIGHT, OLED_BPP, __Info.delay, __Info.frames) != 0)
+    {
+        fprintf(stderr, "Erreur ecriture header.bin.\n");
+        goto cleanup;
+    }
+
+    fclose(__Header);
+    __Header = NULL;
+
+    __Out = fopen(__RawPath, "wb");
+    if (__Out == NULL)
+    {
+        perror("Erreur ouverture vf.raw");
+        goto cleanup;
+    }
+
+    __Header = fopen(__HeaderPath, "rb");
+    if (__Header == NULL)
+    {
+        perror("Erreur ouverture header.bin");
+        goto cleanup;
+    }
+    if (copy_file(__Header, __Out) != 0)
+    {
+        fprintf(stderr, "Erreur copie header.bin -> vf.raw.\n");
+        goto cleanup;
+    }
+    fclose(__Header);
+    __Header = NULL;
+
+    __In = fopen(__RgbPath, "rb");
+    if (__In == NULL)
+    {
+        perror("Erreur ouverture convert.raw");
+        goto cleanup;
+    }
+    if (copy_file(__In, __Out) != 0)
+    {
+        fprintf(stderr, "Erreur copie convert.raw -> vf.raw.\n");
+        goto cleanup;
+    }
+
+    __Ret = 0;
+
+cleanup:
+    if (__Header != NULL)
+    {
+        fclose(__Header);
+    }
+    if (__In != NULL)
+    {
+        fclose(__In);
+    }
+    if (__Out != NULL)
+    {
+        fclose(__Out);
+    }
+    return __Ret;
 }

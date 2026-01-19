@@ -28,7 +28,7 @@
 #define SIZE 60000
 
 #define SIZESTRADC 60
-#define NBGIF 3
+#define NBGIF 6
 
 
 struct TCharDevice {
