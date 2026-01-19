@@ -1,0 +1,8 @@
+# Fichiers compiles
+*.o
+*.a
+*.so
+*.elf
+*.out
+a.out
+Tp7/oled
