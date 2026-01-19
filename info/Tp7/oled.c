@@ -38,6 +38,7 @@ int main(int iArgCount, char *apstrArgValue[])
 	signal(SIGINT, gestionnaire_signal);
 	signal(SIGTERM, gestionnaire_signal);
 	signal(SIGALRM, gestionnaire_signal);
+	signal(SIGUSR1, gestionnaire_signal);
 
 	// Buttons on Falling Edge (o x x o)
 	struct TDeviceCharGpIO gpioButton1 = {
@@ -86,12 +87,11 @@ int main(int iArgCount, char *apstrArgValue[])
 				iResult = check_all_buttons(&gpioButton1, &gpioButton2);
 				if (iResult < 0)
 				{
-					perror("check_all_buttons");
-					break;
+					//No buton press
 				}
 				else
 				{
-					buffer[0] = iResult; // No button pressed
+					buffer[0] = iResult; 
 					write(a2iFdPipe[1], buffer, 1);
 					kill(getppid(), SIGUSR1);
 				}
@@ -127,8 +127,9 @@ int main(int iArgCount, char *apstrArgValue[])
 			pid_t w;
 
 			uint8_t cmd_DisplayVideoFrame[8] = {0xFF, 0xBA, 0x00, 0x00, 0x00, 0x0, 0x00, 0x00};
-			uint8_t cmd_SetByteAdresse[NBGIF][6] = {{0xFF, 0xB9, 0x02, 0x00, 0x00, 0x07},
-													{0xFF, 0xB9, 0x02, 0x04, 0x02, 0x07}};
+			uint8_t cmd_SetByteAdresse[NBGIF][6] = {{0xFF, 0xB9, 0x02, 0x00, 0x00, 0x00},		//GIF 1
+													{0xFF, 0xB9, 0x02, 0x04, 0x02, 0x00},		//GIF 2
+													{0xFF, 0xB9, 0x02, 0x10, 0x04, 0x00}};		//GIF 3
 			//---------------- Initialisation des drivers ----------------//
 			EcranOled.m_iDescIO = open(EcranOled.m_strFileIO, O_RDWR);
 			if (EcranOled.m_iDescIO < 0)
@@ -157,36 +158,43 @@ int main(int iArgCount, char *apstrArgValue[])
 				goto cleanup;
 			}
 			printf("Initialisation media ok\n\r");
-
+			printf("=======================\n\r");
+			printf("Playing gif nb : %i\n\r", gif);
 			iResult = GetNbFrames(&EcranOled, cmd_SetByteAdresse[gif], &nb_frame);
 			if (iResult < 0)
 			{
 				printf("error Get Nb Frames : %2x\n\r", iResult);
 				goto cleanup;
 			}
-
+			printf("Valeur adresse (nb frame): %u\n\n\n\r", nb_frame);
 			//---------------- Main loop ----------------//
 			while (sigFlagStop != -1)
 			{
 				/* code */
 				if (sigUser1 == 1)
 				{
+					printf("\033[F");
+					printf("\033[F\033[K");
+					printf("\033[F\033[K");
 					sigUser1 = 0;
-					read(a2iFdPipe[0], buffer, 1);
-					GstPipe(gif, buffer[0]);
+					read(a2iFdPipe[0], &buffer[0], 1);
+					iResult = GstPipe(&gif, buffer[0]);
+					printf("\033[F\033[KPlaying gif nb : %i\n\r", gif);
 					iResult = GetNbFrames(&EcranOled, cmd_SetByteAdresse[gif], &nb_frame);
 					if (iResult < 0)
 					{
 						printf("error Get Nb Frames : %2x\n\r", iResult);
 						goto cleanup;
 					}
+					printf("Valeur adresse (nb frame): %u\n\n\n\r", nb_frame);
 				}
 
-				for (size_t i = 0; i <= nb_frame && sigFlagStop != -1; i++)
+				for (size_t i = 0; i <= nb_frame && sigFlagStop != -1 && sigUser1 != 1; i++)
 				{
 					cmd_DisplayVideoFrame[6] = (i >> 8) & 0xFF;
 					cmd_DisplayVideoFrame[7] = i & 0xFF;
-					printf("\033[F\033[KDisplay Frame : %i\n\r", i);
+					printf("\033[F\033[F\033[KDisplay Frame : %i\n\r", i);
+					printf("=======================\n\r");
 					iResult = SendCmd(EcranOled.m_iDescIO, cmd_DisplayVideoFrame, sizeof(cmd_DisplayVideoFrame));
 					if (iResult != 0x06)
 					{
@@ -218,6 +226,7 @@ int main(int iArgCount, char *apstrArgValue[])
 				printf("Error %d closing device %s: %s\n\r", errno, EcranOled.m_strFileIO, strerror(errno));
 				return -1;
 			}
+			printf("Ecran closed\n\r");
 			w = waitpid(pid, &status, 0);
 			if (w == -1)
 			{
@@ -226,6 +235,7 @@ int main(int iArgCount, char *apstrArgValue[])
 			else
 			{
 			}
+			printf("All process kill\n\r");
 			fprintf(stdout, "Fin du programme\n\r");
 		}
 	}

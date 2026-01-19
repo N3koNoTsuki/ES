@@ -7,7 +7,7 @@ ARCH = arm
 CROSS_COMPILE = arm-none-linux-gnueabihf-
 CC = $(CROSS_COMPILE)gcc
 INSTALL = install
-CFLAGS =  -g -Wall -Wno-unused-variable -Wno-unused-parameter
+CFLAGS =  -g -Wall 
 LDFLAGS = -g -Wall -lm  
 
 

@@ -434,7 +434,6 @@ int button_press(struct TDeviceCharGpIO *__Fds, int __Idx){
     __Ret = poll(&__Fds->m_pollfd[__Idx], 1, 10);
     if (__Ret < 0)
     { 
-        perror("poll() button1 event");
         return -1;
     }
     else if (__Ret > 0 && (__Fds->m_pollfd[__Idx].revents & POLLIN))
@@ -491,26 +490,31 @@ int check_all_buttons(struct TDeviceCharGpIO* __Fds1, struct TDeviceCharGpIO* __
  * Return: action code 1..4 when handled, -1 otherwise.
  * Author: Jules BELLEVRAS
  */
-int GstPipe(int __Gif, char __Idx ){
+int GstPipe(int *__Gif, char __Idx ){
     int __Ret = -1;
-    if (__Idx == '1')
+    if (__Idx == 3)
     {
-        __Gif = (__Gif + 1) % NBGIF;
+        *__Gif = (*__Gif + 1) % NBGIF;
         __Ret = 1;
     }
-    else if (__Idx == '2')
+    else if (__Idx == 4)
     {
-        __Gif = (__Gif - 1) % NBGIF;
+        *__Gif = (*__Gif - 1) % NBGIF;
+        if (*__Gif < 0)
+        {
+            *__Gif = NBGIF - 1;
+        }
+        
         __Ret = 2;
     }
-    else if (__Idx == '3')
+    else if (__Idx == 2)
     {
-        __Gif = 0;
+        *__Gif = 0;
         __Ret = 3;
     }
-    else if (__Idx == '4')
+    else if (__Idx == 1)
     {
-        __Gif = NBGIF - 1;
+        *__Gif = NBGIF - 1;
         __Ret = 4;
     }
     return __Ret;
@@ -525,30 +529,33 @@ int GstPipe(int __Gif, char __Idx ){
  * Return: 0x06 on success, negative error code on failure.
  * Author: Jules BELLEVRAS
  */
-int GetNbFrames(struct TDeviceCharGpIO *__Fds, uint8_t __CmdSetByte[], int* __NbFrames){
+int GetNbFrames(struct TCharDevice *__Fds, uint8_t __CmdSetByte[], uint16_t* __NbFrames){
 
     int __RET = -1;
     const uint8_t CmdReadByte[2] = {0xFF, 0xB7};
 
-    __RET = SendCmd(__Fds->m_iDescIO, __CmdSetByte, sizeof(__CmdSetByte));
+    //On se place au byte contenant le nombre de frames
+    __CmdSetByte[5] = 0x07;
+
+    __RET = SendCmd(__Fds->m_iDescIO, __CmdSetByte, 6);
     if (__RET != 0x06)
     {
         printf("error Set Byte Adresse : %2x\n\r", __RET);
         return -1;
     }
 
-    __RET = SendCmd2RetV(__Fds->m_iDescIO, CmdReadByte, &__NbFrames);
+    __RET = SendCmd2RetV(__Fds->m_iDescIO, CmdReadByte, __NbFrames);
     if (__RET < 0)
     {
         printf("error Read Byte : %2x\n\r", __RET);
         return -2;
     }
-    printf("Valeur adresse (nb frame): %i\n\n\r", __NbFrames);
+   
     
     //On se remet a la bonne adresse pour la video.
     __CmdSetByte[5] = 0x00;
     
-    __RET = SendCmd(__Fds->m_iDescIO, __CmdSetByte, sizeof(__CmdSetByte));
+    __RET = SendCmd(__Fds->m_iDescIO, __CmdSetByte, 6);
     if (__RET != 0x06)
     {
         printf("error Set Byte Adresse def : %2x\n\r", __RET);
