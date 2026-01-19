@@ -40,21 +40,7 @@ int main(int iArgCount, char *apstrArgValue[])
 	signal(SIGALRM, gestionnaire_signal);
 	signal(SIGUSR1, gestionnaire_signal);
 
-	// Buttons on Falling Edge (o x x o)
-	struct TDeviceCharGpIO gpioButton1 = {
-		.m_DevChar = {
-			.m_iDescIO = -1,
-			.m_strFileIO = "/dev/gpiochip2",
-		},
-	};
 
-	// Buttons on Both Edges (x o o x)
-	struct TDeviceCharGpIO gpioButton2 = {
-		.m_DevChar = {
-			.m_iDescIO = -1,
-			.m_strFileIO = "/dev/gpiochip3",
-		},
-	};
 
 	//---------------- Reservation ----------------//
 	int iResult = -1;
@@ -79,9 +65,30 @@ int main(int iArgCount, char *apstrArgValue[])
 			/* code du fils*/
 			// Le fils lit les boutons est renvois lequelle a etait appuye au pere
 			close(a2iFdPipe[0]); // Ferme la lecture
+
+			//---------------- Drivers ----------------//
+
+			// Buttons on Falling Edge (o x x o)
+			struct TDeviceCharGpIO gpioButton1 = {
+				.m_DevChar = {
+					.m_iDescIO = -1,
+					.m_strFileIO = "/dev/gpiochip2",
+				},
+			};
+
+			// Buttons on Both Edges (x o o x)
+			struct TDeviceCharGpIO gpioButton2 = {
+				.m_DevChar = {
+					.m_iDescIO = -1,
+					.m_strFileIO = "/dev/gpiochip3",
+				},
+			};
+
+			//---------------- Initialisation des drivers ----------------//
 			config_gpio_button(&gpioButton1, GPIOEVENT_REQUEST_FALLING_EDGE, DEBUG_ERROR);
 			config_gpio_button(&gpioButton2, GPIOEVENT_REQUEST_BOTH_EDGES, DEBUG_ERROR);
 
+			//---------------- Main loop ----------------//
 			while (sigFlagStop != -1)
 			{
 				iResult = check_all_buttons(&gpioButton1, &gpioButton2);
@@ -96,12 +103,14 @@ int main(int iArgCount, char *apstrArgValue[])
 					kill(getppid(), SIGUSR1);
 				}
 			}
+			//---------------- Setting down ----------------//
 			kill(getppid(), SIGINT);
 			close(a2iFdPipe[1]);
 			close(gpioButton1.m_request.fd);
 			close(gpioButton1.m_DevChar.m_iDescIO);
 			close(gpioButton2.m_request.fd);
 			close(gpioButton2.m_DevChar.m_iDescIO);
+			printf("Fils end\n\r");
 			break;
 
 		default:
@@ -120,7 +129,6 @@ int main(int iArgCount, char *apstrArgValue[])
 
 			//---------------- Reservation ----------------//
 			int gif = 0;
-			int gifOld = gif;
 			int status = 0;
 			uint16_t err = 0;
 			uint16_t nb_frame;
@@ -235,6 +243,7 @@ int main(int iArgCount, char *apstrArgValue[])
 			else
 			{
 			}
+			printf("Pere end\n\r");
 			printf("All process kill\n\r");
 			fprintf(stdout, "Fin du programme\n\r");
 		}
