@@ -95,11 +95,11 @@ int SendCmd(int __Fd, const uint8_t * __Buf, size_t __Len){
  * Return: 0 on success, negative error code on failure/invalid data.
  * Author: Jules BELLEVRAS
  */
-int SendCmd2RetV(int __Fd, const uint8_t * __Buf, uint16_t *__Ret)
+int SendCmd2RetV(int __Fd, const uint8_t * __Buf, size_t __Len, uint16_t *__Ret)
 {
     tcflush(__Fd, TCIFLUSH);
 
-    if (write(__Fd, __Buf, sizeof(__Buf)) != (ssize_t)sizeof(__Buf)) {
+    if (write(__Fd, __Buf, __Len) != (ssize_t)__Len) {
         return -1;
     }
     usleep(500000);
@@ -544,7 +544,7 @@ int GetNbFrames(struct TCharDevice *__Fds, uint8_t __CmdSetByte[], uint16_t* __N
         return -1;
     }
 
-    __RET = SendCmd2RetV(__Fds->m_iDescIO, CmdReadByte, __NbFrames);
+    __RET = SendCmd2RetV(__Fds->m_iDescIO, CmdReadByte, sizeof(CmdReadByte), __NbFrames);
     if (__RET < 0)
     {
         printf("error Read Byte : %2x\n\r", __RET);
@@ -563,3 +563,4 @@ int GetNbFrames(struct TCharDevice *__Fds, uint8_t __CmdSetByte[], uint16_t* __N
     }
     return __RET;
 }
+

@@ -62,7 +62,7 @@ enum DebugLevel {
 
 int ClearOled(int __Fd);
 int SendCmd(int __Fd, const uint8_t * __Buf, size_t __Len);
-int SendCmd2RetV(int __Fd, const uint8_t * __Buf, uint16_t *__Ret);
+int SendCmd2RetV(int __Fd, const uint8_t * __Buf, size_t __Len, uint16_t *__Ret);
 int change_baudrate(struct TCharDevice *__Dev, struct termios* __Term, enum BaudRate __BaudRate, enum DebugLevel __DbgLvl);
 int init_liaison(struct TCharDevice *__Dev, struct termios *__Init, struct termios *__Old, size_t __lenInit);
 int init_media(int __Fd, uint16_t *__Ret);
