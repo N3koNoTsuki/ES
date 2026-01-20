@@ -135,13 +135,21 @@ int main(int iArgCount, char *apstrArgValue[])
 			pid_t w;
 
 			uint8_t cmd_DisplayVideoFrame[8] = {0xFF, 0xBA, 0x00, 0x00, 0x00, 0x0, 0x00, 0x00};
-			uint8_t cmd_SetByteAdresse[NBGIF][6] = {{0xFF, 0xB9, 0x02, 0x00, 0x00, 0x00},		//GIF 1
-													{0xFF, 0xB9, 0x02, 0x04, 0x02, 0x00},		//GIF 2
-													{0xFF, 0xB9, 0x02, 0x10, 0x04, 0x00},		//GIF 3
-													{0xFF, 0xB9, 0x02, 0x16, 0x82, 0x00},
-													{0xFF, 0xB9, 0x02, 0x1B, 0x04, 0x00},
-													{0xFF, 0xB9, 0x02, 0x20, 0x06, 0x00}
-													};		
+			uint8_t (*cmd_SetByteAdresse)[6] = NULL;
+			size_t gif_count = 0;
+			// Charge la table des adresses GIF depuis le fichier.
+			if (LoadGifAddresses(GIF_ADDRESS_PATH, &cmd_SetByteAdresse, &gif_count) != 0)
+			{
+				fprintf(stderr, "Erreur lecture adresses: %s\n", GIF_ADDRESS_PATH);
+				return -1;
+			}
+			if (gif_count == 0)
+			{
+				fprintf(stderr, "Aucune adresse GIF valide dans %s\n", GIF_ADDRESS_PATH);
+				free(cmd_SetByteAdresse);
+				return -1;
+			}
+
 			//---------------- Initialisation des drivers ----------------//
 			EcranOled.m_iDescIO = open(EcranOled.m_strFileIO, O_RDWR);
 			if (EcranOled.m_iDescIO < 0)
@@ -190,7 +198,7 @@ int main(int iArgCount, char *apstrArgValue[])
 					printf("\033[F\033[K");
 					sigUser1 = 0;
 					read(a2iFdPipe[0], &buffer[0], 1);
-					iResult = GstPipe(&gif, buffer[0]);
+					iResult = GstPipe(&gif, buffer[0], gif_count);
 					printf("\033[F\033[KPlaying gif nb : %i\n\r", gif);
 					iResult = GetNbFrames(&EcranOled, cmd_SetByteAdresse[gif], &nb_frame);
 					if (iResult < 0)
@@ -220,6 +228,7 @@ int main(int iArgCount, char *apstrArgValue[])
 		//---------------- Setting down ----------------//
 		cleanup:
 			close(a2iFdPipe[0]);
+			free(cmd_SetByteAdresse);
 			printf("\n\033[F\033[KSetting down\n\r");
 			iResult = ClearOled(EcranOled.m_iDescIO);
 			if (iResult < 0)

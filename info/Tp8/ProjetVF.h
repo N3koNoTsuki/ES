@@ -1,3 +1,4 @@
+/* OLED GIF uploader/reader definitions */
 #if !defined __TEST_H__
 #define      __TEST_H__ 
 
@@ -20,7 +21,7 @@
 #define SIZE 60000
 
 #define SIZESTRADC 60
-#define NBGIF 6
+#define GIF_ADDRESS_PATH "gif_addresses.txt"
 #define BYTES_PER_SECTOR 512
 #define BYTES_PER_LINE 16
 #define BYTES_PER_SECTOR 512
@@ -76,10 +77,13 @@ int init_media(int __Fd, uint16_t *__Ret);
 int config_gpio_button(struct TDeviceCharGpIO* __Fds, unsigned int __EventFlgs, enum DebugLevel __DbgLvl);
 int button_press(struct TDeviceCharGpIO *__Fds, int __Idx);
 int check_all_buttons(struct TDeviceCharGpIO* __Fds1, struct TDeviceCharGpIO* __Fds2);
-int GstPipe(int *__Gif, char __Idx );
+int GstPipe(int *__Gif, char __Idx, size_t __Count);
 int GetNbFrames(struct TCharDevice *__Fds, uint8_t __CmdSetByte[], uint16_t* __NbFrames);
 int Write_Byte_media(struct TCharDevice *__Fds, uint8_t __Lsb);
 int Write_Word_media(struct TCharDevice *__Fds, uint8_t __Msb, uint8_t __Lsb);
 int build_raw_with_header(const char *__GifPath, const char *__RawPath);
 void print_progress(size_t __Written, size_t __Total);
+int LoadGifAddresses(const char *__Path, uint8_t (**__CmdSetByte)[6], size_t *__OutCount);
+int LoadGifFreeAddress(const char *__Path, uint8_t __CmdSetByte[6]);
+int AppendGifAddressFromRaw(const char *__AddrPath, const char *__RawPath, uint32_t *__OutAddress);
 #endif // #if !defined __TEST_H__

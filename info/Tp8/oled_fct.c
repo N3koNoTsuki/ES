@@ -1,4 +1,4 @@
-#include "test.h"
+#include "ProjetVF.h"
 
 /* read_exact
  * Role: read exactly __N bytes from __Fd into __Buf, handling EINTR.
@@ -489,19 +489,22 @@ int check_all_buttons(struct TDeviceCharGpIO* __Fds1, struct TDeviceCharGpIO* __
  * Return: action code 1..4 when handled, -1 otherwise.
  * Author: Jules BELLEVRAS
  */
-int GstPipe(int *__Gif, char __Idx ){
+int GstPipe(int *__Gif, char __Idx, size_t __Count){
     int __Ret = -1;
+    if (__Count == 0) {
+        return -1;
+    }
     if (__Idx == 3)
     {
-        *__Gif = (*__Gif + 1) % NBGIF;
+        *__Gif = (*__Gif + 1) % (int)__Count;
         __Ret = 1;
     }
     else if (__Idx == 4)
     {
-        *__Gif = (*__Gif - 1) % NBGIF;
+        *__Gif = (*__Gif - 1) % (int)__Count;
         if (*__Gif < 0)
         {
-            *__Gif = NBGIF - 1;
+            *__Gif = (int)__Count - 1;
         }
         
         __Ret = 2;
@@ -513,7 +516,7 @@ int GstPipe(int *__Gif, char __Idx ){
     }
     else if (__Idx == 1)
     {
-        *__Gif = NBGIF - 1;
+        *__Gif = (int)__Count - 1;
         __Ret = 4;
     }
     return __Ret;
@@ -624,6 +627,220 @@ void print_progress(size_t __Written, size_t __Total)
     }
     printf("] %3d%%", __Percent);
     fflush(stdout);
+}
+
+/* LoadGifAddresses
+ * Role: read GIF byte addresses from a file and build SetByte command buffers.
+ * Params:
+ *  - __Path: address file path.
+ *  - __CmdSetByte: output command buffers (allocated).
+ *  - __OutCount: output number of GIF entries (count-1).
+ * Return: 0 on success, -1 on error.
+ */
+int LoadGifAddresses(const char *__Path, uint8_t (**__CmdSetByte)[6], size_t *__OutCount)
+{
+    FILE *__File = NULL;
+    unsigned int __Count = 0;
+    int __Ret = -1;
+
+    if (__Path == NULL || __CmdSetByte == NULL || __OutCount == NULL) {
+        return -1;
+    }
+    *__CmdSetByte = NULL;
+    *__OutCount = 0;
+
+    __File = fopen(__Path, "r");
+    if (__File == NULL) {
+        perror("fopen");
+        return -1;
+    }
+
+    if (fscanf(__File, "%u", &__Count) != 1 || __Count == 0) {
+        fprintf(stderr, "Invalid address count in %s\n", __Path);
+        goto cleanup;
+    }
+    if (__Count < 2) {
+        fprintf(stderr, "Not enough addresses in %s (need 1+free)\n", __Path);
+        goto cleanup;
+    }
+
+    size_t __UseCount = (size_t)__Count - 1;
+    uint8_t (*__Out)[6] = calloc(__UseCount, sizeof(*__Out));
+    if (__Out == NULL) {
+        perror("calloc");
+        goto cleanup;
+    }
+
+    for (unsigned int __I = 0; __I < __Count; __I++) {
+        uint8_t __Entry[6];
+        for (unsigned int __J = 0; __J < 6; __J++) {
+            if (fscanf(__File, "%2hhX", &__Entry[__J]) != 1) {
+                fprintf(stderr, "Invalid address data at entry %u\n", __I);
+                free(__Out);
+                goto cleanup;
+            }
+        }
+        if (__I < __UseCount) {
+            for (unsigned int __J = 0; __J < 6; __J++) {
+                __Out[__I][__J] = __Entry[__J];
+            }
+        }
+    }
+
+    *__CmdSetByte = __Out;
+    *__OutCount = __UseCount;
+    __Ret = 0;
+
+cleanup:
+    fclose(__File);
+    return __Ret;
+}
+
+/* LoadGifFreeAddress
+ * Role: read the last entry from the address file (next free address).
+ * Params:
+ *  - __Path: address file path.
+ *  - __CmdSetByte: output command buffer (size 6).
+ * Return: 0 on success, -1 on error.
+ */
+int LoadGifFreeAddress(const char *__Path, uint8_t __CmdSetByte[6])
+{
+    FILE *__File = NULL;
+    unsigned int __Count = 0;
+    uint8_t __Entry[6] = {0};
+
+    if (__Path == NULL || __CmdSetByte == NULL) {
+        return -1;
+    }
+
+    __File = fopen(__Path, "r");
+    if (__File == NULL) {
+        perror("fopen");
+        return -1;
+    }
+
+    if (fscanf(__File, "%u", &__Count) != 1 || __Count == 0) {
+        fprintf(stderr, "Invalid address count in %s\n", __Path);
+        fclose(__File);
+        return -1;
+    }
+
+    for (unsigned int __I = 0; __I < __Count; __I++) {
+        for (unsigned int __J = 0; __J < 6; __J++) {
+            if (fscanf(__File, "%2hhX", &__Entry[__J]) != 1) {
+                fprintf(stderr, "Invalid address data at entry %u\n", __I);
+                fclose(__File);
+                return -1;
+            }
+        }
+    }
+
+    fclose(__File);
+    for (unsigned int __J = 0; __J < 6; __J++) {
+        __CmdSetByte[__J] = __Entry[__J];
+    }
+    return 0;
+}
+
+/* AppendGifAddressFromRaw
+ * Role: append the next aligned address to the address file based on raw file size.
+ * Params:
+ *  - __AddrPath: address file path.
+ *  - __RawPath: raw file path used to compute the next address.
+ *  - __OutAddress: optional output of the appended address.
+ * Return: 0 on success, -1 on error.
+ */
+int AppendGifAddressFromRaw(const char *__AddrPath, const char *__RawPath, uint32_t *__OutAddress)
+{
+    FILE *__File = NULL;
+    unsigned int __Count = 0;
+    uint8_t (*__Entries)[6] = NULL;
+    struct stat __St;
+    uint32_t __LastAddr = 0;
+    uint32_t __NextAddr = 0;
+    uint32_t __AlignedAddr = 0;
+
+    if (__AddrPath == NULL || __RawPath == NULL) {
+        return -1;
+    }
+
+    __File = fopen(__AddrPath, "r");
+    if (__File == NULL) {
+        perror("fopen");
+        return -1;
+    }
+
+    if (fscanf(__File, "%u", &__Count) != 1 || __Count == 0) {
+        fprintf(stderr, "Invalid address count in %s\n", __AddrPath);
+        fclose(__File);
+        return -1;
+    }
+
+    __Entries = calloc(__Count + 1, sizeof(*__Entries));
+    if (__Entries == NULL) {
+        perror("calloc");
+        fclose(__File);
+        return -1;
+    }
+
+    for (unsigned int __I = 0; __I < __Count; __I++) {
+        for (unsigned int __J = 0; __J < 6; __J++) {
+            if (fscanf(__File, "%2hhX", &__Entries[__I][__J]) != 1) {
+                fprintf(stderr, "Invalid address data at entry %u\n", __I);
+                free(__Entries);
+                fclose(__File);
+                return -1;
+            }
+        }
+    }
+    fclose(__File);
+
+    __LastAddr = ((uint32_t)__Entries[__Count - 1][2] << 24) |
+                 ((uint32_t)__Entries[__Count - 1][3] << 16) |
+                 ((uint32_t)__Entries[__Count - 1][4] << 8) |
+                 (uint32_t)__Entries[__Count - 1][5];
+
+    if (stat(__RawPath, &__St) != 0 || __St.st_size < 0) {
+        perror("stat");
+        free(__Entries);
+        return -1;
+    }
+
+    __NextAddr = __LastAddr + (uint32_t)__St.st_size;
+    __AlignedAddr = (__NextAddr + 0x1FFu) & ~0x1FFu;
+
+    __Entries[__Count][0] = 0xFF;
+    __Entries[__Count][1] = 0xB9;
+    __Entries[__Count][2] = (uint8_t)((__AlignedAddr >> 24) & 0xFF);
+    __Entries[__Count][3] = (uint8_t)((__AlignedAddr >> 16) & 0xFF);
+    __Entries[__Count][4] = (uint8_t)((__AlignedAddr >> 8) & 0xFF);
+    __Entries[__Count][5] = (uint8_t)(__AlignedAddr & 0xFF);
+
+    __File = fopen(__AddrPath, "w");
+    if (__File == NULL) {
+        perror("fopen");
+        free(__Entries);
+        return -1;
+    }
+
+    fprintf(__File, "%u\n", __Count + 1);
+    for (unsigned int __I = 0; __I < __Count + 1; __I++) {
+        fprintf(__File, "%02X%02X%02X%02X%02X%02X\n",
+                __Entries[__I][0],
+                __Entries[__I][1],
+                __Entries[__I][2],
+                __Entries[__I][3],
+                __Entries[__I][4],
+                __Entries[__I][5]);
+    }
+    fclose(__File);
+
+    if (__OutAddress != NULL) {
+        *__OutAddress = __AlignedAddr;
+    }
+
+    free(__Entries);
+    return 0;
 }
 
 /* write_oled_header

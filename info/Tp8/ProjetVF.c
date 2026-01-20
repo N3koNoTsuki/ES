@@ -1,6 +1,8 @@
-#include "test.h"
-
-
+/* $Id: ProjetVF.c, v 1.0 05/11/2017 11:51:52  $
+ * linux : Upload/affiche un GIF sur l'OLED via RS-232
+ * Copyright (c) 2017 IUT ANNECY Departement GEII/INFO
+ */
+#include "ProjetVF.h"
 
 volatile sig_atomic_t sigFlagStop = 0;
 sig_atomic_t sigUser1 = 0;
@@ -23,6 +25,11 @@ void gestionnaire_signal(int iNumSignal)
 
 int main(void)
 {
+    // Clear console at startup
+    printf("\033[2J\033[HDebut du programme\n\r");
+	fflush(stdout);
+
+    //---------------- Gestion des signaux ----------------//
     signal(SIGINT, gestionnaire_signal);
 	signal(SIGTERM, gestionnaire_signal);
     signal(SIGALRM, gestionnaire_signal);
@@ -53,13 +60,28 @@ int main(void)
     uint8_t NoGif = 0;
     const uint8_t cmd_FlushMedia[2] = {0xFF, 0xB2};
     uint8_t cmd_DisplayVideoFrame[8] = {0xFF, 0xBA, 0x00, 0x00, 0x00, 0x0, 0x00, 0x00};
-    uint8_t cmd_SetByteAdresse[NBGIF][6] = {{0xFF, 0xB9, 0x02, 0x00, 0x00, 0x00},   // GIF 1
-                                            {0xFF, 0xB9, 0x02, 0x04, 0x02, 0x00},   // GIF 2
-                                            {0xFF, 0xB9, 0x02, 0x10, 0x04, 0x00},   // GIF 3
-                                            {0xFF, 0xB9, 0x02, 0x16, 0x82, 0x00},   // GIF 4 
-                                            {0xFF, 0xB9, 0x02, 0x1B, 0x04, 0x00},   // GIF 5
-                                            {0xFF, 0xB9, 0x02, 0x20, 0x06, 0x00}    // GIF 6
-                                            }; 
+    uint8_t (*cmd_SetByteAdresse)[6] = NULL;
+    size_t gif_count = 0;
+    uint8_t cmd_SetByteAdresse_Free[6] = {0};
+    // Charge les adresses GIF + l'adresse libre depuis le fichier.
+    if (LoadGifAddresses(GIF_ADDRESS_PATH, &cmd_SetByteAdresse, &gif_count) != 0)
+    {
+        fprintf(stderr, "Erreur lecture adresses: %s\n", GIF_ADDRESS_PATH);
+        return -1;
+    }
+    if (gif_count == 0)
+    {
+        fprintf(stderr, "Aucune adresse GIF valide dans %s\n", GIF_ADDRESS_PATH);
+        free(cmd_SetByteAdresse);
+        return -1;
+    }
+    if (LoadGifFreeAddress(GIF_ADDRESS_PATH, cmd_SetByteAdresse_Free) != 0)
+    {
+        fprintf(stderr, "Erreur lecture adresse libre: %s\n", GIF_ADDRESS_PATH);
+        free(cmd_SetByteAdresse);
+        return -1;
+    }
+
     //---------------- Initialisation des drivers ----------------//
     EcranOled.m_iDescIO = open(EcranOled.m_strFileIO, O_RDWR);
     if (EcranOled.m_iDescIO < 0)
@@ -90,13 +112,6 @@ int main(void)
     printf("Initialisation media ok\n\r");
 
 
-    iResult = SendCmd(EcranOled.m_iDescIO, cmd_SetByteAdresse[NBGIF - 1], 6);
-    if (iResult != 0x06)
-    {
-        printf("error Set Byte Adresse : %2x\n\r", iResult);
-        goto cleanup;
-    }
-    
     printf("Entrez le nom du fichier a lire : ");
     if (scanf("%255s", filename) != 1)
     {
@@ -112,6 +127,14 @@ int main(void)
     
     if (NoGif == 0)
     {
+        // Positionne l'adresse d'ecriture sur le prochain bloc libre.
+        iResult = SendCmd(EcranOled.m_iDescIO, cmd_SetByteAdresse_Free, 6);
+        if (iResult != 0x06)
+        {
+            printf("error Set Byte Adresse : %2x\n\r", iResult);
+            goto cleanup;
+        }
+
         snprintf(raw_filename, sizeof(raw_filename), "%s.raw", filename);
     
         if (build_raw_with_header(filename, raw_filename) != 0)
@@ -184,6 +207,10 @@ int main(void)
             printf("Erreur flush Media 0x%2X", err);
             goto cleanup;
         }
+        if (AppendGifAddressFromRaw(GIF_ADDRESS_PATH, filename, NULL) != 0)
+        {
+            fprintf(stderr, "Erreur mise a jour adresses: %s\n", GIF_ADDRESS_PATH);
+        }
         
     }
     
@@ -194,7 +221,14 @@ int main(void)
     }
     
     
-    iResult = GetNbFrames(&EcranOled, cmd_SetByteAdresse[NBGIF - 1], &frame);
+    if (NoGif == 0)
+    {
+        iResult = GetNbFrames(&EcranOled, cmd_SetByteAdresse_Free, &frame);
+    }
+    else
+    {
+        iResult = GetNbFrames(&EcranOled, cmd_SetByteAdresse[gif_count - 1], &frame);
+    }
     if (iResult < 0)
     {
         printf("error Get Nb Frames : %2x\n\r", iResult);
@@ -224,8 +258,10 @@ int main(void)
         fclose(file);
         return 1;
     }
-cleanup:
+    //---------------- Setting down ----------------//
+ cleanup:
     printf("\n\033[F\033[KSetting down\n\r");
+    free(cmd_SetByteAdresse);
     iResult = ClearOled(EcranOled.m_iDescIO);
     if (iResult < 0)
     {
@@ -259,7 +295,6 @@ cleanup:
         __Ret = system(__Cmd);
         if (__Ret != 0)
         {
-            fprintf(stderr, "ffmpeg: conversion GIF->RGB565BE echouee.\n");
             return -1;
         }
     }

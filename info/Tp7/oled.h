@@ -28,7 +28,7 @@
 #define SIZE 60000
 
 #define SIZESTRADC 60
-#define NBGIF 6
+#define GIF_ADDRESS_PATH "gif_addresses.txt"
 
 
 struct TCharDevice {
@@ -69,6 +69,7 @@ int init_media(int __Fd, uint16_t *__Ret);
 int config_gpio_button(struct TDeviceCharGpIO* __Fds, unsigned int __EventFlgs, enum DebugLevel __DbgLvl);
 int button_press(struct TDeviceCharGpIO *__Fds, int __Idx);
 int check_all_buttons(struct TDeviceCharGpIO* __Fds1, struct TDeviceCharGpIO* __Fds2);
-int GstPipe(int *__Gif, char __Idx );
+int GstPipe(int *__Gif, char __Idx, size_t __Count);
 int GetNbFrames(struct TCharDevice *__Fds, uint8_t __CmdSetByte[], uint16_t* __NbFrames);
+int LoadGifAddresses(const char *__Path, uint8_t (**__CmdSetByte)[6], size_t *__OutCount);
 #endif // #if !defined __OLED_H__

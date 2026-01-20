@@ -11,7 +11,7 @@ CFLAGS =  -g -Wall
 LDFLAGS = -g -Wall  
 
 
-PROGS     = testRead
+PROGS     = ProjetVF
 
 ifeq ($(prefix),)
     prefix	 = /home/geii/DE1-Soc/rootfs
@@ -23,9 +23,9 @@ INSTOWNER = geii
 INSTGROUP = geii
 
 # SRCR : list of C source code for compiler 
-SRCS	= test.c oled_fct.c
+SRCS	= ProjetVF.c oled_fct.c
 # OBJS : list of objet code for linker
-OBJS	= test.o oled_fct.o
+OBJS	= ProjetVF.o oled_fct.o
 
 all:	$(PROGS)
 
@@ -50,6 +50,6 @@ depend:
 
 # The following is used to automatically generate dependencies.
 # DO NOT DELETE
-test.o: test.h 
-oled_fct.o : test.h
+ProjetVF.o: ProjetVF.h 
+oled_fct.o : ProjetVF.h
 

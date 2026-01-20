@@ -489,19 +489,22 @@ int check_all_buttons(struct TDeviceCharGpIO* __Fds1, struct TDeviceCharGpIO* __
  * Return: action code 1..4 when handled, -1 otherwise.
  * Author: Jules BELLEVRAS
  */
-int GstPipe(int *__Gif, char __Idx ){
+int GstPipe(int *__Gif, char __Idx, size_t __Count){
     int __Ret = -1;
+    if (__Count == 0) {
+        return -1;
+    }
     if (__Idx == 3)
     {
-        *__Gif = (*__Gif + 1) % NBGIF;
+        *__Gif = (*__Gif + 1) % (int)__Count;
         __Ret = 1;
     }
     else if (__Idx == 4)
     {
-        *__Gif = (*__Gif - 1) % NBGIF;
+        *__Gif = (*__Gif - 1) % (int)__Count;
         if (*__Gif < 0)
         {
-            *__Gif = NBGIF - 1;
+            *__Gif = (int)__Count - 1;
         }
         
         __Ret = 2;
@@ -513,7 +516,7 @@ int GstPipe(int *__Gif, char __Idx ){
     }
     else if (__Idx == 1)
     {
-        *__Gif = NBGIF - 1;
+        *__Gif = (int)__Count - 1;
         __Ret = 4;
     }
     return __Ret;
@@ -563,3 +566,69 @@ int GetNbFrames(struct TCharDevice *__Fds, uint8_t __CmdSetByte[], uint16_t* __N
     return __RET;
 }
 
+/* LoadGifAddresses
+ * Role: read GIF byte addresses from a file and build SetByte command buffers.
+ * Params:
+ *  - __Path: address file path.
+ *  - __CmdSetByte: output command buffers (allocated).
+ *  - __OutCount: output number of GIF entries (count-1).
+ * Return: 0 on success, -1 on error.
+ */
+int LoadGifAddresses(const char *__Path, uint8_t (**__CmdSetByte)[6], size_t *__OutCount)
+{
+    FILE *__File = NULL;
+    unsigned int __Count = 0;
+    int __Ret = -1;
+
+    if (__Path == NULL || __CmdSetByte == NULL || __OutCount == NULL) {
+        return -1;
+    }
+    *__CmdSetByte = NULL;
+    *__OutCount = 0;
+
+    __File = fopen(__Path, "r");
+    if (__File == NULL) {
+        perror("fopen");
+        return -1;
+    }
+
+    if (fscanf(__File, "%u", &__Count) != 1 || __Count == 0) {
+        fprintf(stderr, "Invalid address count in %s\n", __Path);
+        goto cleanup;
+    }
+    if (__Count < 2) {
+        fprintf(stderr, "Not enough addresses in %s (need 1+free)\n", __Path);
+        goto cleanup;
+    }
+
+    size_t __UseCount = (size_t)__Count - 1;
+    uint8_t (*__Out)[6] = calloc(__UseCount, sizeof(*__Out));
+    if (__Out == NULL) {
+        perror("calloc");
+        goto cleanup;
+    }
+
+    for (unsigned int __I = 0; __I < __Count; __I++) {
+        uint8_t __Entry[6];
+        for (unsigned int __J = 0; __J < 6; __J++) {
+            if (fscanf(__File, "%2hhX", &__Entry[__J]) != 1) {
+                fprintf(stderr, "Invalid address data at entry %u\n", __I);
+                free(__Out);
+                goto cleanup;
+            }
+        }
+        if (__I < __UseCount) {
+            for (unsigned int __J = 0; __J < 6; __J++) {
+                __Out[__I][__J] = __Entry[__J];
+            }
+        }
+    }
+
+    *__CmdSetByte = __Out;
+    *__OutCount = __UseCount;
+    __Ret = 0;
+
+cleanup:
+    fclose(__File);
+    return __Ret;
+}
