@@ -140,7 +140,7 @@ int main(void)
         if (build_raw_with_header(filename, raw_filename) != 0)
         {
             fprintf(stderr, "Erreur creation fichier raw.\n");
-            return 1;
+            goto cleanup;
         }
         strncpy(filename, raw_filename, sizeof(filename) - 1);
         filename[sizeof(filename) - 1] = '\0';
@@ -151,7 +151,7 @@ int main(void)
         if (file == NULL)
         {
             perror("Erreur lors de l'ouverture du fichier");
-            return 1;
+            goto cleanup;
         }
         {
             struct stat st;
@@ -199,7 +199,11 @@ int main(void)
             }
         }
 
-
+        if (sigFlagStop == -1)
+        {
+            /* code */
+            goto cleanup;
+        }
         iResult = SendCmd2RetV(EcranOled.m_iDescIO, cmd_FlushMedia, sizeof(cmd_FlushMedia), &err);
         if (iResult != 0)
         {
