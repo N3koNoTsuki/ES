@@ -114,7 +114,7 @@ int main(void)
     printf("Initialisation media ok\n\r");
 
 
-    printf("Entrez le nom du fichier a lire : ");
+    printf("Entrez le nom du fichier a lire (\"c\" pour skip): ");
     if (scanf("%255s", filename) != 1)
     {
         fprintf(stderr, "Erreur : nom de fichier invalide.\n");
@@ -248,7 +248,7 @@ int main(void)
     printf("\nValeur adresse (nb frame): %u\n\n\r", frame);
 
  
-    for (size_t i = 0; i <= frame && sigFlagStop != -1 && sigUser1 != 1; i++)
+    for (size_t i = 0; i <= frame && sigFlagStop != -1; i++)
     {
         cmd_DisplayVideoFrame[6] = (i >> 8) & 0xFF;
         cmd_DisplayVideoFrame[7] = i & 0xFF;
@@ -301,7 +301,7 @@ int main(void)
         int __Ret;
 
         snprintf(__Cmd, sizeof(__Cmd),
-                    "./oled");
+                    "./DIsplayGif");
 
         __Ret = system(__Cmd);
         if (__Ret != 0)

@@ -40,8 +40,6 @@ int main(int iArgCount, char *apstrArgValue[])
 	signal(SIGALRM, gestionnaire_signal);
 	signal(SIGUSR1, gestionnaire_signal);
 
-
-
 	//---------------- Reservation ----------------//
 	int iResult = -1;
 	pid_t pid;
@@ -87,18 +85,17 @@ int main(int iArgCount, char *apstrArgValue[])
 			//---------------- Initialisation des drivers ----------------//
 			config_gpio_button(&gpioButton1, GPIOEVENT_REQUEST_FALLING_EDGE, DEBUG_ERROR);
 			config_gpio_button(&gpioButton2, GPIOEVENT_REQUEST_BOTH_EDGES, DEBUG_ERROR);
-
 			//---------------- Main loop ----------------//
 			while (sigFlagStop != -1)
 			{
 				iResult = check_all_buttons(&gpioButton1, &gpioButton2);
 				if (iResult < 0)
 				{
-					//No buton press
+					// No buton press
 				}
 				else
 				{
-					buffer[0] = iResult; 
+					buffer[0] = iResult;
 					write(a2iFdPipe[1], buffer, 1);
 					kill(getppid(), SIGUSR1);
 				}
@@ -110,7 +107,7 @@ int main(int iArgCount, char *apstrArgValue[])
 			close(gpioButton1.m_DevChar.m_iDescIO);
 			close(gpioButton2.m_request.fd);
 			close(gpioButton2.m_DevChar.m_iDescIO);
-			printf("Fils end\n\r");
+			printf("\n\033[F\033[KFils end\n\r");
 			break;
 
 		default:
@@ -137,25 +134,13 @@ int main(int iArgCount, char *apstrArgValue[])
 			uint8_t cmd_DisplayVideoFrame[8] = {0xFF, 0xBA, 0x00, 0x00, 0x00, 0x0, 0x00, 0x00};
 			uint8_t (*cmd_SetByteAdresse)[6] = NULL;
 			size_t gif_count = 0;
-			// Charge la table des adresses GIF depuis le fichier.
-			if (LoadGifAddresses(GIF_ADDRESS_PATH, &cmd_SetByteAdresse, &gif_count) != 0)
-			{
-				fprintf(stderr, "Erreur lecture adresses: %s\n", GIF_ADDRESS_PATH);
-				return -1;
-			}
-			if (gif_count == 0)
-			{
-				fprintf(stderr, "Aucune adresse GIF valide dans %s\n", GIF_ADDRESS_PATH);
-				free(cmd_SetByteAdresse);
-				return -1;
-			}
 
 			//---------------- Initialisation des drivers ----------------//
 			EcranOled.m_iDescIO = open(EcranOled.m_strFileIO, O_RDWR);
 			if (EcranOled.m_iDescIO < 0)
 			{
 				perror("open");
-				return -1;
+				goto cleanup;
 			}
 
 			//---------------- Configuration de la liaison RS-232 ----------------//
@@ -164,7 +149,7 @@ int main(int iArgCount, char *apstrArgValue[])
 			{
 
 				printf("Erreur init_liaison : %i\n\r", iResult);
-				return -1;
+				goto cleanup;
 			}
 			printf("Initialisation finished\n\r");
 
@@ -178,6 +163,20 @@ int main(int iArgCount, char *apstrArgValue[])
 				goto cleanup;
 			}
 			printf("Initialisation media ok\n\r");
+
+			// Charge la table des adresses GIF depuis le fichier.
+			if (LoadGifAddresses(GIF_ADDRESS_PATH, &cmd_SetByteAdresse, &gif_count) != 0)
+			{
+				fprintf(stderr, "Erreur lecture adresses: %s\n", GIF_ADDRESS_PATH);
+				goto cleanup;
+			}
+			if (gif_count == 0)
+			{
+				fprintf(stderr, "Aucune adresse GIF valide dans %s\n", GIF_ADDRESS_PATH);
+				free(cmd_SetByteAdresse);
+				goto cleanup;
+			}
+
 			printf("=======================\n\r");
 			printf("Playing gif nb : %i\n\r", gif);
 			iResult = GetNbFrames(&EcranOled, cmd_SetByteAdresse[gif], &nb_frame);
@@ -238,16 +237,15 @@ int main(int iArgCount, char *apstrArgValue[])
 			iResult = change_baudrate(&EcranOled, &LiasonOled, BAUDRATE_9600, DEBUG_NONE);
 			if (iResult < 0)
 			{
-				return -1;
 			}
 
 			tcsetattr(EcranOled.m_iDescIO, TCSANOW, &LiasonOled_Old); // restore old settings
 			if (close(EcranOled.m_iDescIO) == -1)
 			{
 				printf("Error %d closing device %s: %s\n\r", errno, EcranOled.m_strFileIO, strerror(errno));
-				return -1;
 			}
 			printf("Ecran closed\n\r");
+			kill(pid, SIGTERM);
 			w = waitpid(pid, &status, 0);
 			if (w == -1)
 			{
