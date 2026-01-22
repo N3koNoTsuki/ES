@@ -997,5 +997,13 @@ cleanup:
     {
         fclose(__Out);
     }
+    if (unlink(__HeaderPath) != 0 && errno != ENOENT)
+    {
+        perror("unlink header.bin");
+    }
+    if (unlink(__RgbPath) != 0 && errno != ENOENT)
+    {
+        perror("unlink convert.raw");
+    }
     return __Ret;
 }

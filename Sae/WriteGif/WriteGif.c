@@ -109,8 +109,10 @@ int main(void)
     {
         printf("%i\n\r", iResult);
         printf("error init Media : %2x\n\r", err);
+        err = 1;
         goto cleanup;
     }
+    err = 0;
     printf("Initialisation media ok\n\r");
 
 
@@ -118,7 +120,8 @@ int main(void)
     if (scanf("%255s", filename) != 1)
     {
         fprintf(stderr, "Erreur : nom de fichier invalide.\n");
-        return -1;
+        err = 1;
+        goto cleanup;
     }
 
     if (filename[0] == 'c')
@@ -134,6 +137,7 @@ int main(void)
         if (iResult != 0x06)
         {
             printf("error Set Byte Adresse : %2x\n\r", iResult);
+            err = 1;
             goto cleanup;
         }
 
@@ -142,6 +146,7 @@ int main(void)
         if (build_raw_with_header(filename, raw_filename) != 0)
         {
             fprintf(stderr, "Erreur creation fichier raw.\n");
+            err = 1;
             goto cleanup;
         }
         strncpy(filename, raw_filename, sizeof(filename) - 1);
@@ -153,6 +158,7 @@ int main(void)
         if (file == NULL)
         {
             perror("Erreur lors de l'ouverture du fichier");
+            err = 1;
             goto cleanup;
         }
         {
@@ -203,21 +209,28 @@ int main(void)
 
         if (sigFlagStop == -1)
         {
-            /* code */
+            iResult = SendCmd2RetV(EcranOled.m_iDescIO, cmd_FlushMedia, sizeof(cmd_FlushMedia), &err);
+            if (iResult != 0)
+            {
+                printf("Erreur flush Media 0x%2X", err);
+                goto cleanup;
+            }
             goto cleanup;
         }
+        err = 0;
         iResult = SendCmd2RetV(EcranOled.m_iDescIO, cmd_FlushMedia, sizeof(cmd_FlushMedia), &err);
         if (iResult != 0)
         {
             /* code */
             printf("Erreur flush Media 0x%2X", err);
+            err = 1;
             goto cleanup;
         }
+        err = 0;
         if (AppendGifAddressFromRaw(GIF_ADDRESS_PATH, filename, NULL) != 0)
         {
             fprintf(stderr, "Erreur mise a jour adresses: %s\n", GIF_ADDRESS_PATH);
         }
-        
     }
     
     if (sigFlagStop == -1)
@@ -236,6 +249,7 @@ int main(void)
         if (gif_count == 0)
         {
             fprintf(stderr, "Aucune adresse GIF disponible dans %s\n", GIF_ADDRESS_PATH);
+            err = 1;
             goto cleanup;
         }
         iResult = GetNbFrames(&EcranOled, cmd_SetByteAdresse[gif_count - 1], &frame);
@@ -243,6 +257,7 @@ int main(void)
     if (iResult < 0)
     {
         printf("error Get Nb Frames : %2x\n\r", iResult);
+        err = 1;
         goto cleanup;
     }
     printf("\nValeur adresse (nb frame): %u\n\n\r", frame);
@@ -257,6 +272,7 @@ int main(void)
         if (iResult != 0x06)
         {
             printf("error Display Video Frame : %2x\n\r", iResult);
+            err = 1;
             goto cleanup;
         }
         usleep(30000);
@@ -272,6 +288,10 @@ int main(void)
     //---------------- Setting down ----------------//
  cleanup:
     printf("\n\033[F\033[KSetting down\n\r");
+    if (unlink(filename) != 0 && errno != ENOENT)
+    {
+        perror("unlink convert.raw");
+    }
     free(cmd_SetByteAdresse);
     iResult = ClearOled(EcranOled.m_iDescIO);
     if (iResult < 0)
@@ -294,7 +314,7 @@ int main(void)
     fprintf(stdout, "Fin du programme\n\r");
 
 
-    if (sigFlagStop != -1)
+    if (sigFlagStop != -1 && err != 1)
     {
         /* code */
         char __Cmd[1024];
