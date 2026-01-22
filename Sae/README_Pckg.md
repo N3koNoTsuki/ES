@@ -1,5 +1,7 @@
 # README — Installation de FFmpeg (conversion GIF → RGB565BE) sur cible DE1-SoC
 
+- je recommande d'utiliser l'extension `Simply Markdown Viewer` sous Visual pour un meilleur affichage ou tout viewer de .md
+
 Ce document décrit, pas à pas, comment intégrer FFmpeg dans un rootfs Linux
 embarqué pour DE1-SoC, afin de permettre la conversion de GIF vers du
 rawvideo RGB565 big-endian (rgb565be).

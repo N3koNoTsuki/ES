@@ -1,5 +1,8 @@
 # README — ./DIsplayGif (sélection et lecture d’animations GIF sur écran OLED via boutons GPIO)
 
+- je recommande d'utiliser l'extension `Simply Markdown Viewer` sous Visual pour un meilleur affichage ou tout viewer de .md
+
+
 ## Résumé
 
 `./DIsplayGif` est un programme Linux (cible ARM) qui :

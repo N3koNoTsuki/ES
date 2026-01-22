@@ -1,5 +1,7 @@
 # README — WriteGif (upload + lecture d’animation GIF sur écran OLED via RS-232)
 
+- je recommande d'utiliser l'extension `Simply Markdown Viewer` sous Visual pour un meilleur affichage ou tout viewer de .md
+
 ## Résumé
 
 `./WriteGif` est un programme Linux (cible ARM) qui :
